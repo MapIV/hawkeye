@@ -1,0 +1,32 @@
+hawkeye:
+  template_size: [192, 192] # size of template image
+  map_size: [256, 256] # ROI size of ortho image map for template matching
+  # the size of histogram filter is map_size - template_size + [1,1]
+  error_rate: 0.01 # alpha in the paper
+  coeff_diminish: 0.996 # beta in the paper
+  coeff_weight: 0.07 # k in the paper
+  coeff_negative: 0.025 # b in the paper
+  coeff_gain: 0.3 # g in the paper
+  center_shift_threshold: 0.5 # The threshold for judgement whether the histogram center should shift. Set the real number in [0,1] closed set.
+  # If 0, the center shifts by any non-zero difference between the center and the estimated pose.
+  # If 1, the center shifts when the center is out of the histogram range, which means the center never shifts.
+  edge_copy_shift: false # Parameter for hawkeye_rt
+  # When the histogram center shifts, points on the histogram edge are newly created.
+  # If true, those points are initialized by the nearby point. If false, those are initialized by zero.
+  histogram_weight: 1 # Parameter for hawkeye_rt_ws
+  # It configures how the histogram weight affects estimation. Set the real number in [0,1] closed set.
+  # The histogram weight means the upper limmit of each histogram point. This is calculated as histogram, using the the upper limmit of the matching result instead of the match result.
+  # It is effective when the histogram points newly created at the center shift are smaller due to a lack of accumulation.
+  # If 0, the weight is ignored. If 1, the values divided by the histogram weight are used in estimation. 
+  lidar_accumulate: # For making template image, LiDAR data are accumulated to satisfy the following two conditions.
+    max_count: 30 # Size condition: The count of LiDAR data does not exceed the number. If it exceeds while meeting the second condition, one of the closest continuous pair of LiDAR data is removed.
+    max_length: 20 # Length threshold [m]: If a LiDAR data which position by Eagleye is farther than the threshold from the current pose is removed.
+
+# TF from Eagleye to lidar
+gnss:
+  tf_x: 0.0
+  tf_y: 0.0
+  tf_z: 0.0
+  tf_roll: 0.0
+  tf_pitch: 0.0
+  tf_yaw: 0.0

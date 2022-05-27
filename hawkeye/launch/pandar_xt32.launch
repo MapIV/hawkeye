@@ -1,0 +1,29 @@
+<launch>
+
+  <arg name="pcap_file"  default=""/>
+  <arg name="lidar_ip" default="192.168.30.40"/>
+  <arg name="lidar_recv_port"  default="2368"/>
+  <arg name="gps_port"  default="10110"/>
+  <arg name="start_angle"  default="0"/>
+  <arg name="pcldata_type" default="0"/>
+  <arg name="publish_type" default="both"/>
+  <arg name="timestamp_type" default=""/>
+  <arg name="use_rosbag" default="false"/>
+  <arg name="lidar_correction_file"  default=""/>
+  <arg name="frame_id" default="hesai"/>
+
+  <include file="$(find hawkeye)/launch/hesai_lidar.launch">
+    <arg name="pcap_file"  value="$(arg pcap_file)"/>
+    <arg name="lidar_ip" value="$(arg lidar_ip)"/>
+    <arg name="lidar_recv_port"  value="$(arg lidar_recv_port)"/>
+    <arg name="gps_port"  value="$(arg gps_port)"/>
+    <arg name="start_angle"  value="$(arg start_angle)"/>
+    <arg name="lidar_type" value="PandarXT-32"/>
+    <arg name="pcldata_type" value="$(arg pcldata_type)"/>
+    <arg name="timestamp_type" value="$(arg timestamp_type)"/>
+    <arg name="use_rosbag" value="$(arg use_rosbag)"/>
+    <arg name="frame_id" value="$(arg frame_id)"/>
+    <arg name="lidar_correction_file" value="$(arg lidar_correction_file)"/>
+  </include>
+
+</launch>

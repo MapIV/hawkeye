@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<launch>
+
+  <!-- Hawkeye parameters -->
+  <arg name="ortho_map"/>
+  <arg name="config" default="$(find hawkeye)/config/hawkeye.yaml"/>
+  <arg name="lidar_topic_name" default="points_raw"/>
+  <arg name="extra_args" default=""/>
+  <arg name="ws_mode" default="false" />
+
+  <!-- Other parameters -->
+  <arg name="output" default="screen"/>
+  <arg name="use_rviz" default="true"/>
+  <arg name="rviz_info" default="$(find hawkeye)/rviz/hawkeye.rviz" unless="$(arg ws_mode)"/>
+  <arg name="rviz_info" default="$(find hawkeye)/rviz/hawkeye_ws.rviz" if="$(arg ws_mode)"/>
+
+  <node pkg="rviz" name="hawkeye_rviz" type="rviz" args="-d $(arg rviz_info)" output="log" if="$(arg use_rviz)"/>
+  <node pkg="hawkeye" name="hawkeye_rt" type="hawkeye_rt" args="$(arg ortho_map) $(arg config) $(arg lidar_topic_name) $(arg extra_args)" output="$(arg output)" unless="$(arg ws_mode)"/>
+  <node pkg="hawkeye" name="hawkeye_rt_ws" type="hawkeye_rt_ws" args="$(arg ortho_map) $(arg config) $(arg lidar_topic_name) $(arg extra_args)" output="$(arg output)" if="$(arg ws_mode)"/>
+
+</launch>
