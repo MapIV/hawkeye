@@ -109,10 +109,10 @@ $ rosrun hawkeye hawkeye_rt <ORTHOMAP_INFO> <YAML_FILE> <LIDAR_TOPIC_NAME> \
 This works with eagleye_rt.launch and eagleye_fix2pose.launch. `/eagleye/pose` and `/eagleye/fix` are subscribed.
 
 ### Arguments and Parameters
-* `ORTHOMAP_INFO` : An orthomap file. For more information, See [README of orthomap_viewer](./orthomap_viewer/README.md).
-* `YAML_FILE` : A configuration YAML file. See [this example](./hawkeye/config/hawkeye.yaml).
+* `ORTHOMAP_INFO` : An orthomap file. For more information, See [README of orthomap_viewer](orthomap_viewer/README.md).
+* `YAML_FILE` : A configuration YAML file. See [this example](hawkeye/config/hawkeye.yaml).
 * `LIDAR_TOPIC_NAME` : A topic name for LiDAR data. The topic type must be sensor_msgs/PointCloud2. The points should be classified by whether they are ground or not and be only the points of ground. If they are not classified, it may be less accuracy.
-* Some optional parameters overwrite the corresponding configurations in `YAML_FILE`. The explanations of the parameters are on [the expample yaml file](./hawkeye/config/hawkeye.yaml).
+* Some optional parameters overwrite the corresponding configurations in `YAML_FILE`. The explanations of the parameters are on [the expample yaml file](hawkeye/config/hawkeye.yaml).
   * `ERROR_RATE` and `error_rate`: $\alpha$ in the paper
   * `COEFF_DIMIMISH` and `coeff_diminish`: $\beta$ in the paper
   * `COEFF_WEIGHT` and `coeff_weight`: $k$ in the paper
@@ -173,7 +173,7 @@ $ rosrun hawkeye hawkeye_rt_ws <ORTHOMAP_INFO> <YAML_FILE> <LIDAR_TOPIC_NAME> \
 ```
 
 ### Arguments and Parameters
-`hawkeye/edge_copy_shift` is invalid and `HISTOGRAM_WEIGHT` and `histogram_weight` are valid. This parameter means how the newly created histograms are weighted by the accumulated time. The detail is on [the expample yaml file](./hawkeye/config/hawkeye.yaml).
+`hawkeye/edge_copy_shift` is invalid and `HISTOGRAM_WEIGHT` and `histogram_weight` are valid. This parameter means how the newly created histograms are weighted by the accumulated time. The detail is on [the expample yaml file](hawkeye/config/hawkeye.yaml).
 
 ### Output
 A grayscale image `weight_image`(sensor_msgs/Image) is puplished additionaly. This image shows the accumulated time.
@@ -182,7 +182,7 @@ A grayscale image `weight_image`(sensor_msgs/Image) is puplished additionaly. Th
 1. D Hirano, K Yoneda, R Yanase, A Mohammad, N Suganuma, "LiDAR and Radar Sensor Fusion for Localizing Autonomous Vehicles", Transactions of Society of Automotive Engineers of Japan 51(5) 824-829, 2020 [Link](https://www.jstage.jst.go.jp/article/jsaeronbun/51/5/51_20204428/_article/-char/en)
 
 ## License
-Hawkeye is provided under the [BSD 3-Clause](./LICENSE) License.
+Hawkeye is provided under the [BSD 3-Clause](https://github.com/MapIV/hawkeye/blob/main/LICENSE) License.
 
 ## Contacts
 If you have further question, email to map4@tier4.jp.
