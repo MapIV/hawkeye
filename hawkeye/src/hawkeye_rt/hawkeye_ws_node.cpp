@@ -154,7 +154,7 @@ private:
     tf2::Transform pose = map_->center().inverseTimes(odometry);
     tf2::Transform ans;
 
-    // kanaszawa --------------------------------------------------
+    // hawkeye --------------------------------------------------
     ans = hawkeye_->update(pose, ground, *map_);
     essential_time += hawkeye_->getDuration();
     std::cout << "estimated pose : " << ans.getOrigin().x() << " , " << ans.getOrigin().y()
