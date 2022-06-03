@@ -151,6 +151,7 @@ private:
     pcl::fromROSMsg(*ptr, *ground);
 
     tf2::Transform pose = map_->center().inverseTimes(odometry);
+    pose.getOrigin().setZ(0);
     tf2::Transform ans;
 
     // hawkeye --------------------------------------------------
@@ -164,7 +165,6 @@ private:
       std::cout << "publish tf and traj ... " << std::endl;
       sw.reset();
 
-      pose.getOrigin().setZ(0);
       ans.getOrigin().setZ(0);
       broadcaster_->broadcast("raw_tf", pose, stamp);
       broadcaster_->broadcast("estimated", ans, stamp);
