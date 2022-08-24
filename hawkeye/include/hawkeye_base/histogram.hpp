@@ -29,6 +29,7 @@
 #include <tuple>
 
 #include <opencv2/opencv.hpp>
+#include <opencv2/highgui/highgui_c.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 #include "hawkeye_define.hpp"
