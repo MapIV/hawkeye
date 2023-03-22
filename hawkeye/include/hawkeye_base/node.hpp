@@ -33,8 +33,6 @@
 
 namespace hawkeye::hawkeye_base
 {
-const std::string tmType();
-
 struct HawkeyeConfig
 {
   cv::Size template_size_;
@@ -50,6 +48,9 @@ struct HawkeyeConfig
   double center_shift_threshold_;
   double histogram_weight_;  // for Hawkeye_WeightedShiftMode
   bool edge_copy_shift_;     // for Hawkeye_CopyShiftMode
+  double intensity_accumulate_threshold_min_;
+  double intensity_accumulate_threshold_max_;
+  double stop_threshold_;
 
   static HawkeyeConfig defaultConfig();
   template <typename HawkeyeMode>

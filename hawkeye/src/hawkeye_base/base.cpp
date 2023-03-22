@@ -28,21 +28,58 @@
 
 namespace hawkeye::hawkeye_base
 {
+constexpr double rate_interpolate = 0.666;
+
 template_image_t generateTemplateImage(const std::list<pose_PC_t>& pc_list, const tf2::Transform& lidar_pose,
-                                       cv::Size size, scale_t scale)
+                                       cv::Size size, scale_t scale, double accum_min, double accum_max)
 {
   if (pc_list.empty())
   {
     std::cerr << ERROR_PREFIX << "No point cloud." << ERROR_SUFFIX << std::endl;
     exit(4);
   }
-  return generateTemplateImage(pc_list, lidar_pose, size, scale, pc_list.back().second.getOrigin());
+  return generateTemplateImage(pc_list, lidar_pose, size, scale, pc_list.back().second.getOrigin(), accum_min,
+                               accum_max);
 }
 
 template_image_t generateTemplateImage(const std::list<pose_PC_t>& pc_list, const tf2::Transform& lidar_pose,
-                                       cv::Size size, scale_t scale, const tf2::Vector3& histogram_center)
+                                       cv::Size size, scale_t scale, const tf2::Vector3& histogram_center,
+                                       double accum_min, double accum_max)
 {
+  accum_min = std::clamp(accum_min, 0., 1.);
+  accum_max = std::clamp(accum_max, 0., 1.);
+  bool use_thesh = accum_min != 0 || accum_max != 1;
   cv::Mat ret(size, CV_8U, cv::Scalar(0));
+  float accumulate_min, accumulate_range;
+  if (use_thesh)
+  {
+    std::map<uint32_t, float> intensity_accumulate_dist;
+    size_t total_count = 0;
+    {
+      std::map<float, uint32_t> intensity_dist;
+      for (auto& [ptr, tf] : pc_list)
+      {
+        for (auto& p : *ptr)
+        {
+          ++intensity_dist[p.intensity];
+        }
+      }
+      for (auto& [key, val] : intensity_dist)
+      {
+        total_count += val;
+        intensity_accumulate_dist.emplace_hint(intensity_accumulate_dist.end(), total_count, key);
+      }
+    }
+    float accumulate_max;
+    accumulate_min = intensity_accumulate_dist.lower_bound(std::floor(accum_min * total_count))->second;
+    accumulate_max = intensity_accumulate_dist.upper_bound(std::ceil(accum_max * total_count) - 1)->second;
+    if (accumulate_min >= accumulate_max)
+    {
+      accumulate_min = accumulate_max - 1;
+    }
+    accumulate_range = accumulate_max - accumulate_min;
+  }
+
   for (auto& [ptr, tf] : pc_list)
   {
     tf2::Transform shift_rotate = tf * lidar_pose;
@@ -54,7 +91,15 @@ template_image_t generateTemplateImage(const std::list<pose_PC_t>& pc_list, cons
       int h = size.height - 1 - std::floor(tf.y() / scale + size.height * 0.5);
       if (w >= 0 && w < size.width && h >= 0 && h < size.height)
       {
-        ret.at<uchar>(cv::Point(w, h)) = std::clamp<double>(p.intensity, 0, 255) * 254. / 255 + 1;
+        if (use_thesh)
+        {
+          ret.at<uchar>(cv::Point(w, h)) =
+              std::round(std::clamp(p.intensity - accumulate_min, 0.f, accumulate_range) * 254. / accumulate_range + 1);
+        }
+        else
+        {
+          ret.at<uchar>(cv::Point(w, h)) = std::clamp<double>(p.intensity, 0, 255) * 254. / 255 + 1;
+        }
       }
     }
   }
@@ -80,15 +125,15 @@ double getSigma(const tf2::Transform& shift, double error_coeff, double scale)
 }
 
 template <typename HawkeyeMode>
-histogram_t generatePrior_(const histogram_t before, size_t kernel_size, double sigma)
+histogram_t generatePrior_(const histogram_t& before, size_t kernel_size, double sigma)
 {
   auto& [hist_mat, weight_mat, scale] = before;
   cv::Mat ret_h(hist_mat.size(), hist_mat.type());
-  cv::GaussianBlur(hist_mat, ret_h, cv::Size(kernel_size, kernel_size), sigma, cv::BorderTypes::BORDER_REPLICATE);
+  cv::GaussianBlur(hist_mat, ret_h, cv::Size(kernel_size, kernel_size), sigma, cv::BORDER_REPLICATE);
   if constexpr (HawkeyeMode::is_weighted_)
   {
     cv::Mat ret_w(weight_mat.size(), weight_mat.type());
-    cv::GaussianBlur(weight_mat, ret_w, cv::Size(kernel_size, kernel_size), sigma, cv::BorderTypes::BORDER_REPLICATE);
+    cv::GaussianBlur(weight_mat, ret_w, cv::Size(kernel_size, kernel_size), sigma, cv::BORDER_REPLICATE);
     return { ret_h, ret_w, scale };
   }
   else
@@ -98,29 +143,31 @@ histogram_t generatePrior_(const histogram_t before, size_t kernel_size, double 
 }
 
 template <typename HawkeyeMode>
-histogram_t generatePrior(const histogram_t before, const tf2::Transform& shift, size_t kernel_size, double error_coeff)
+histogram_t generatePrior(const histogram_t& before, const tf2::Transform& shift, size_t kernel_size,
+                          double error_coeff)
 {
   return generatePrior_<HawkeyeMode>(before, kernel_size, getSigma(shift, error_coeff, std::get<2>(before)));
 }
-template histogram_t generatePrior<Hawkeye_CopyShiftMode>(const histogram_t before, const tf2::Transform& shift,
+template histogram_t generatePrior<Hawkeye_CopyShiftMode>(const histogram_t& before, const tf2::Transform& shift,
                                                           size_t kernel_size, double error_coeff);
-template histogram_t generatePrior<Hawkeye_WeightedShiftMode>(const histogram_t before, const tf2::Transform& shift,
+template histogram_t generatePrior<Hawkeye_WeightedShiftMode>(const histogram_t& before, const tf2::Transform& shift,
                                                               size_t kernel_size, double error_coeff);
 
 template <typename HawkeyeMode>
-histogram_t generatePrior(const histogram_t before, const tf2::Transform& shift, double error_coeff)
+histogram_t generatePrior(const histogram_t& before, const tf2::Transform& shift, double error_coeff)
 {
   double sigma = getSigma(shift, error_coeff, std::get<2>(before));
   size_t estimated_half = std::max(0., std::ceil((sigma - 0.5) / 0.3));  // inversed sigma calculation
   size_t kernel_size = std::clamp<size_t>(estimated_half, 1, 5) * 2 + 1;
   return generatePrior_<HawkeyeMode>(before, kernel_size, sigma);
 }
-template histogram_t generatePrior<Hawkeye_CopyShiftMode>(const histogram_t before, const tf2::Transform& shift,
+template histogram_t generatePrior<Hawkeye_CopyShiftMode>(const histogram_t& before, const tf2::Transform& shift,
                                                           double error_coeff);
-template histogram_t generatePrior<Hawkeye_WeightedShiftMode>(const histogram_t before, const tf2::Transform& shift,
+template histogram_t generatePrior<Hawkeye_WeightedShiftMode>(const histogram_t& before, const tf2::Transform& shift,
                                                               double error_coeff);
 
-match_result_t matchTemplate(const cv::Mat map, scale_t map_scale, const template_image_t template_image, bool use_mask)
+match_result_t matchTemplate(const cv::Mat& map, scale_t map_scale, const template_image_t& template_image,
+                             bool use_mask)
 {
   if (std::get<1>(template_image) != map_scale)
   {
@@ -137,13 +184,15 @@ match_result_t matchTemplate(const cv::Mat map, scale_t map_scale, const templat
   const cv::Mat& template_mat = std::get<0>(template_image);
   if (use_mask)
   {
-    cv::Mat template_mask = template_mat > 0;
-    cv::matchTemplate(map, template_mat, ret_h, CV_TM_CCORR_NORMED, template_mask);  // 32bit
+    cv::Mat template_mask;
+    template_mat.convertTo(template_mask, CV_32F);
+    cv::threshold(template_mask, template_mask, 0, 1, cv::THRESH_BINARY);
+    cv::matchTemplate(map, template_mat, ret_h, cv::TM_CCORR_NORMED, template_mask);  // 32bit
     ret_w = 1;
   }
   else
   {
-    cv::matchTemplate(map, template_mat, ret_h, CV_TM_CCORR_NORMED);  // 32bit
+    cv::matchTemplate(map, template_mat, ret_h, cv::TM_CCORR_NORMED);  // 32bit
     ret_w = 1;
   }
   if (false)
@@ -157,7 +206,7 @@ match_result_t matchTemplate(const cv::Mat map, scale_t map_scale, const templat
 }
 
 template <typename HawkeyeMode>
-histogram_t updateDistribution(const histogram_t prior, const match_result_t match_result, double diminish,
+histogram_t updateDistribution(const histogram_t& prior, const match_result_t& match_result, double diminish,
                                double weight, double negative)
 {
   auto& [prior_h, prior_w, prior_scale] = prior;
@@ -171,11 +220,11 @@ histogram_t updateDistribution(const histogram_t prior, const match_result_t mat
               << ERROR_SUFFIX << std::endl;
     exit(4);
   }
-  cv::Mat ret_h = prior_h * diminish + weight * (match_h + negative);
+  cv::Mat ret_h = prior_h * diminish + weight * (match_h - negative);
   cv::threshold(ret_h, ret_h, 0, 0, cv::ThresholdTypes::THRESH_TOZERO);
   if constexpr (HawkeyeMode::is_weighted_)
   {
-    cv::Mat ret_w = prior_w * diminish + weight * (match_w + negative);
+    cv::Mat ret_w = prior_w * diminish + weight * (match_w - negative);
     return { ret_h, ret_w, prior_scale };
   }
   else
@@ -183,21 +232,21 @@ histogram_t updateDistribution(const histogram_t prior, const match_result_t mat
     return { ret_h, prior_w, prior_scale };
   }
 }
-template histogram_t updateDistribution<Hawkeye_CopyShiftMode>(const histogram_t prior,
-                                                               const match_result_t match_result, double diminish,
+template histogram_t updateDistribution<Hawkeye_CopyShiftMode>(const histogram_t& prior,
+                                                               const match_result_t& match_result, double diminish,
                                                                double weight, double negative);
-template histogram_t updateDistribution<Hawkeye_WeightedShiftMode>(const histogram_t prior,
-                                                                   const match_result_t match_result, double diminish,
+template histogram_t updateDistribution<Hawkeye_WeightedShiftMode>(const histogram_t& prior,
+                                                                   const match_result_t& match_result, double diminish,
                                                                    double weight, double negative);
 
 template <>
-weighted_histogram_t getWeightHistogram<Hawkeye_CopyShiftMode>(const histogram_t histogram, double weight_coeff)
+weighted_histogram_t getWeightHistogram<Hawkeye_CopyShiftMode>(const histogram_t& histogram, double weight_coeff)
 {
   auto& [hist, weight, scale] = histogram;
   return { hist, scale };
 }
 template <>
-weighted_histogram_t getWeightHistogram<Hawkeye_WeightedShiftMode>(const histogram_t histogram, double weight_coeff)
+weighted_histogram_t getWeightHistogram<Hawkeye_WeightedShiftMode>(const histogram_t& histogram, double weight_coeff)
 {
   auto& [hist, weight, scale] = histogram;
   if (weight_coeff == 0)
@@ -207,22 +256,25 @@ weighted_histogram_t getWeightHistogram<Hawkeye_WeightedShiftMode>(const histogr
   return { hist / ((1 - weight_coeff) + weight_coeff * weight), scale };
 }
 
-cv::Moments getMoments_(const cv::Mat histogram)
+cv::Moments getMoments_(const cv::Mat& histogram)
 {
   cv::Mat thres_hist;
   {
     double color_min, color_max;
     cv::minMaxIdx(histogram, &color_min, &color_max);
-    cv::threshold(histogram - (color_min + color_max) / 2, thres_hist, 0, 0, CV_THRESH_TOZERO);
+    // cv::threshold(histogram.mul(histogram) - std::pow(color_min + (color_max - color_min) * rate_interpolate, 2),
+    //               thres_hist, 0, 0, cv::THRESH_TOZERO);
+    cv::threshold(histogram - (color_min + (color_max - color_min) * rate_interpolate), thres_hist, 0, 0,
+                  cv::THRESH_TOZERO);
   }
   return cv::moments(thres_hist);
 }
 
-cv::Moments getMoments(const weighted_histogram_t histogram)
+cv::Moments getMoments(const weighted_histogram_t& histogram)
 {
   return getMoments_(std::get<0>(histogram));
 }
-cv::Moments getMoments(const match_result_t histogram)
+cv::Moments getMoments(const match_result_t& histogram)
 {
   return getMoments_(std::get<0>(histogram));
 }
@@ -239,12 +291,12 @@ tf2::Vector3 average_(const cv::Size size, double scale, const cv::Moments& mome
   return { gx * scale, -gy * scale, 0 };
 }
 
-tf2::Vector3 average(const weighted_histogram_t histogram, const cv::Moments& moments)
+tf2::Vector3 average(const weighted_histogram_t& histogram, const cv::Moments& moments)
 {
   auto& [hist, scale] = histogram;
   return average_(hist.size(), scale, moments);
 }
-tf2::Vector3 average(const match_result_t histogram, const cv::Moments& moments)
+tf2::Vector3 average(const match_result_t& histogram, const cv::Moments& moments)
 {
   auto& [hist, weight, scale] = histogram;
   return average_(hist.size(), scale, moments);
@@ -256,9 +308,9 @@ tf2::Vector3 updateOffset(const tf2::Vector3& prev, const tf2::Vector3& next, do
 }
 
 template <typename HawkeyeMode>
-std::tuple<histogram_t, tf2::Vector3, tf2::Vector3> shiftCenter(const histogram_t histogram, const tf2::Vector3& center,
-                                                                const tf2::Vector3& offset, double threshold_rate,
-                                                                bool edge_copy_shift)
+std::tuple<histogram_t, tf2::Vector3, tf2::Vector3> shiftCenter(const histogram_t& histogram,
+                                                                const tf2::Vector3& center, const tf2::Vector3& offset,
+                                                                double threshold_rate, bool edge_copy_shift)
 {
   auto& [hist, weight, scale] = histogram;
   auto size = hist.size();
@@ -284,6 +336,9 @@ std::tuple<histogram_t, tf2::Vector3, tf2::Vector3> shiftCenter(const histogram_
     }
     else
     {
+      // double min, max;
+      // cv::minMaxIdx(hist, &min, &max);
+      // next_hist = cv::Mat(size, hist.type(), cv::Scalar(min));
       next_hist = cv::Mat(size, hist.type(), cv::Scalar(0));
     }
   }
@@ -331,13 +386,13 @@ std::tuple<histogram_t, tf2::Vector3, tf2::Vector3> shiftCenter(const histogram_
   return { { next_hist, next_weight, scale }, center_next, offset_next };
 }
 template std::tuple<histogram_t, tf2::Vector3, tf2::Vector3>
-shiftCenter<Hawkeye_CopyShiftMode>(const histogram_t histogram, const tf2::Vector3& center, const tf2::Vector3& offset,
+shiftCenter<Hawkeye_CopyShiftMode>(const histogram_t& histogram, const tf2::Vector3& center, const tf2::Vector3& offset,
                                    double threshold_rate, bool edge_copy_shift);
 template std::tuple<histogram_t, tf2::Vector3, tf2::Vector3>
-shiftCenter<Hawkeye_WeightedShiftMode>(const histogram_t histogram, const tf2::Vector3& center,
+shiftCenter<Hawkeye_WeightedShiftMode>(const histogram_t& histogram, const tf2::Vector3& center,
                                        const tf2::Vector3& offset, double threshold_rate, bool edge_copy_shift);
 
-cv::Mat convertHistogram2CVU8C1(const cv::Mat histogram)
+cv::Mat convertHistogram2CVU8C1(const cv::Mat& histogram)
 {
   double color_min, color_max;
   cv::minMaxIdx(histogram, &color_min, &color_max);
@@ -356,25 +411,25 @@ cv::Mat convertHistogram2CVU8C1(const cv::Mat histogram)
   ret.convertTo(ret, CV_8U);
   return ret;
 }
-cv::Mat convertHistogram2CVU8C1(const weighted_histogram_t histogram)
+cv::Mat convertHistogram2CVU8C1(const weighted_histogram_t& histogram)
 {
   auto& [hist, scale] = histogram;
   return convertHistogram2CVU8C1(hist);
 }
-cv::Mat convertHistogram2CVU8C1(const match_result_t histogram)
+cv::Mat convertHistogram2CVU8C1(const match_result_t& histogram)
 {
   auto& [hist, weight, scale] = histogram;
   return convertHistogram2CVU8C1(hist);
 }
 
-void setHistogramMarkers(visualization_msgs::MarkerArray& ma, const weighted_histogram_t histogram,
+void setHistogramMarkers(visualization_msgs::MarkerArray& ma, const weighted_histogram_t& histogram,
                          const tf2::Transform& odometry, const std_msgs::Header& header, bool as_array)
 {
   ma.markers.clear();
   auto& [image, scale] = histogram;
   double max_weight, min_weight;
   {
-    cv::minMaxLoc(image, &min_weight, &max_weight);
+    cv::minMaxIdx(image, &min_weight, &max_weight);
     if (max_weight == min_weight)
     {
       min_weight = max_weight - 1;
@@ -388,7 +443,7 @@ void setHistogramMarkers(visualization_msgs::MarkerArray& ma, const weighted_his
     // rank *= rank;
     color_out.r = std::clamp(2 * rank, 0., 1.);
     color_out.g = std::clamp(2 * (1 - rank), 0., 1.);
-    if (val < (min_weight + max_weight) / 2)
+    if (val < min_weight + (max_weight - min_weight) * rate_interpolate)
     {
       color_out.r *= 0.5;
       color_out.g *= 0.5;

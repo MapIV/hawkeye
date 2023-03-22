@@ -408,10 +408,11 @@ int main(int argc, char** argv)
   std::cout << "(-a) accumulation_count  : " << config.lidar_accumulate_max_count_ << std::endl;
   std::cout << "(-A) accumulation_length : " << config.lidar_accumulate_max_length_ << std::endl;
   std::cout << "(-s) center_shift_th     : " << config.center_shift_threshold_ << std::endl;
-  std::cout << "(-H) histogram_weight     : " << config.histogram_weight_ << std::endl;
+  std::cout << "(-H) histogram_weight    : " << config.histogram_weight_ << std::endl;
+  std::cout << "intensity_threshold_min  : " << config.intensity_accumulate_threshold_min_ << std::endl;
+  std::cout << "intensity_threshold_max  : " << config.intensity_accumulate_threshold_max_ << std::endl;
+  std::cout << "stop_threshold           : " << config.stop_threshold_ << std::endl;
   std::cout << "(-o) small_overhead      : " << std::boolalpha << small_overhead << std::noboolalpha << std::endl;
-
-  std::cout << "##### " << hawkeye_base::tmType() << " #####" << std::endl;
 
   HawkeyeWSM4Node node(orthomap_filename, config_filename, lidar_topic_name, config);
 

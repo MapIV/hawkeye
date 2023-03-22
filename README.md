@@ -10,6 +10,11 @@ Hawkeye - Localization with LiDAR, GNSS/INS and ortho image map
 
 [![](http://img.youtube.com/vi/HDGBGOr2-rA/0.jpg)](https://youtu.be/HDGBGOr2-rA "Hawkeye with Ground Segmentation")
 
+# Update
+## 2023/03/22
+**Hawkeye and the config file for the sample are updated.**
+**To use the updated Hawkeye, please re-download the config file.**
+
 ## What is Hawkeye
 This is a limited re-implementation of [this method](https://doi.org/10.11351/jsaeronbun.51.824). This estimates the pose with LiDAR, [Eagleye](https://github.com/MapIV/eagleye.git) and ortho image map ***without Millimeter Wave Radar***. This implementation is extended to accommodate cases where GNSS/INS(Eagleye) errors accumulate for some reason.
 

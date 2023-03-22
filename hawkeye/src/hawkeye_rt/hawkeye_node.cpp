@@ -411,9 +411,10 @@ int main(int argc, char** argv)
   std::cout << "(-s) center_shift_th     : " << config.center_shift_threshold_ << std::endl;
   std::cout << "(-cC) edge_copy_shift    : " << std::boolalpha << config.edge_copy_shift_ << std::noboolalpha
             << std::endl;
+  std::cout << "intensity_threshold_min  : " << config.intensity_accumulate_threshold_min_ << std::endl;
+  std::cout << "intensity_threshold_max  : " << config.intensity_accumulate_threshold_max_ << std::endl;
+  std::cout << "stop_threshold           : " << config.stop_threshold_ << std::endl;
   std::cout << "(-o) small_overhead      : " << std::boolalpha << small_overhead << std::noboolalpha << std::endl;
-
-  std::cout << "##### " << hawkeye_base::tmType() << " #####" << std::endl;
 
   HawkeyeM4Node node(orthomap_filename, config_filename, lidar_topic_name, config);
 

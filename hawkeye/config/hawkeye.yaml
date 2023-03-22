@@ -21,6 +21,9 @@ hawkeye:
   lidar_accumulate: # For making template image, LiDAR data are accumulated to satisfy the following two conditions.
     max_count: 30 # Size condition: The count of LiDAR data does not exceed the number. If it exceeds while meeting the second condition, one of the closest continuous pair of LiDAR data is removed.
     max_length: 20 # Length threshold [m]: If a LiDAR data which position by Eagleye is farther than the threshold from the current pose is removed.
+  intensity_accumulate_threshold_min: 0    # Correct outlier points of the measured point cloud in intensity to within a specified range.
+  intensity_accumulate_threshold_max: 0.98 # The upper and lower limits of the range are set as the cumulative distribution of intensity.
+  stop_threshold: 0.05 # While the displacement from the previous step is less than this parameter, histogram update are stopped.
 
 # TF from Eagleye to lidar
 gnss:

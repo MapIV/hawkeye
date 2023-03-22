@@ -36,9 +36,22 @@ namespace hawkeye::hawkeye_base
 {
 HawkeyeConfig HawkeyeConfig::defaultConfig()
 {
-  return {
-    { 192, 192 }, { 256, 256 }, 1. / 100, 0.996, 0.07, 0.025, 0.3, 30, 20., tf2::Transform::getIdentity(), 0.5, 1, true
-  };
+  return { { 192, 192 },
+           { 256, 256 },
+           1. / 100,
+           0.990,
+           0.07,
+           0.6,
+           0.3,
+           30,
+           20.,
+           tf2::Transform::getIdentity(),
+           0.5,
+           1,
+           true,
+           0,
+           1,
+           0.05 };
 }
 
 template <class T>
@@ -100,6 +113,9 @@ void HawkeyeConfig::readYamlConfig(const std::string& yaml_filename)
       lidar_pose_.setOrigin({ x, y, z });
       lidar_pose_.getBasis().setRPY(roll, pitch, yaw);
     }
+    getIfValid(hawkeye_yaml["intensity_accumulate_threshold_max"], intensity_accumulate_threshold_max_);
+    getIfValid(hawkeye_yaml["intensity_accumulate_threshold_min"], intensity_accumulate_threshold_min_);
+    getIfValid(hawkeye_yaml["stop_threshold"], stop_threshold_);
   }
   catch (YAML::Exception& e)
   {

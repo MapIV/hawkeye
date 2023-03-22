@@ -33,21 +33,6 @@ namespace hawkeye::hawkeye_base
 {
 constexpr bool use_cv_tm_mask_ = true;
 
-constexpr char cv_str[] = "cv template matching";
-constexpr char cv_mask_str[] = "cv template matching with mask";
-
-const std::string tmType()
-{
-  if (!use_cv_tm_mask_)
-  {
-    return cv_str;
-  }
-  else
-  {
-    return cv_mask_str;
-  }
-}
-
 double getTrueHistogramWeight(double histogram_weight, double coeff_diminish, double coeff_weight,
                               double coeff_negative)
 {
@@ -144,22 +129,7 @@ tf2::Transform Hawkeye<HawkeyeMode>::update(const tf2::Transform& pose, const PC
 {
   Stopwatch sw;
   essential_time_ = 0;
-  if (counter_ != 0)
-  {
-    // generating prior --------------------------------------------------
-    if (print_info)
-    {
-      std::cout << "generating prior distribution ... " << std::flush;
-    }
-    sw.reset();
-    histogram_ =
-        hawkeye_base::generatePrior<HawkeyeMode>(shifted_histogram_, odometry_.inverseTimes(pose), config_.error_rate_);
-    essential_time_ += sw.count();
-    if (print_info)
-    {
-      std::cout << "done in " << sw.get() << " ms" << std::endl;
-    }
-  }
+  tf2::Transform ret;
 
   // updating point cloud list --------------------------------------------------
   if (print_info)
@@ -177,104 +147,137 @@ tf2::Transform Hawkeye<HawkeyeMode>::update(const tf2::Transform& pose, const PC
     std::cout << "done in " << sw.get() << " ms ( size : " << pc_list_.size() << " )" << std::endl;
   }
 
-  // generating template image --------------------------------------------------
-  if (print_info)
+  // skip if stopping --------------------------------------------------
+  if ((odometry_.getOrigin() - pose.getOrigin()).length() < config_.stop_threshold_ && counter_ != 0)
   {
-    std::cout << "generating template image ... " << std::flush;
+    if (print_info)
+    {
+      std::cout << "skip histgram update while stopping" << std::endl;
+    }
+    ret = pose;
+    ret.getOrigin() += center_shift_ + offset_;
   }
-  sw.reset();
-  histogram_center_ = pose;
-  histogram_center_.getOrigin() += center_shift_;
-  template_image_ = generateTemplateImage(pc_list_, config_.lidar_pose_, config_.template_size_,
-                                          std::get<2>(histogram_), pose.getOrigin());
-  essential_time_ += sw.count();
-  if (print_info)
+  else
   {
-    std::cout << "done in " << sw.get() << " ms" << std::endl;
+    if (counter_ != 0)
+    {
+      // generating prior --------------------------------------------------
+      if (print_info)
+      {
+        std::cout << "generating prior distribution ... " << std::flush;
+      }
+      sw.reset();
+      histogram_ = hawkeye_base::generatePrior<HawkeyeMode>(shifted_histogram_, odometry_.inverseTimes(pose),
+                                                            config_.error_rate_);
+      essential_time_ += sw.count();
+      if (print_info)
+      {
+        std::cout << "done in " << sw.get() << " ms" << std::endl;
+      }
+    }
+
+    // generating template image --------------------------------------------------
+    if (print_info)
+    {
+      std::cout << "generating template image ... " << std::flush;
+    }
+    sw.reset();
+    histogram_center_ = pose;
+    histogram_center_.getOrigin() += center_shift_;
+    template_image_ = generateTemplateImage(
+        pc_list_, config_.lidar_pose_, config_.template_size_, std::get<2>(histogram_), pose.getOrigin(),
+        config_.intensity_accumulate_threshold_min_, config_.intensity_accumulate_threshold_max_);
+    essential_time_ += sw.count();
+    if (print_info)
+    {
+      std::cout << "done in " << sw.get() << " ms" << std::endl;
+    }
+
+    // generating map image --------------------------------------------------
+    if (print_info)
+    {
+      std::cout << "generating map image ... " << std::flush;
+    }
+    sw.reset();
+    submap_ = map.getImageRange(histogram_center_.getOrigin(), config_.map_size_.width, config_.map_size_.height);
+    essential_time_ += sw.count();
+    if (print_info)
+    {
+      std::cout << "done in " << sw.get() << " ms" << std::endl;
+      std::cout << "histogram center : " << histogram_center_.getOrigin().x() << ", "
+                << histogram_center_.getOrigin().y();
+      std::cout << " ( " << center_shift_.x() << ", " << center_shift_.y();
+      std::cout << " / " << offset_.x() << ", " << offset_.y() << " )" << std::endl;
+    }
+
+    // matching --------------------------------------------------
+    if (print_info)
+    {
+      std::cout << "matching ... " << std::flush;
+    }
+    sw.reset();
+    match_result_ = matchTemplate(submap_, map.getScale(), template_image_, true);
+    essential_time_ += sw.count();
+    if (print_info)
+    {
+      double min, max;
+      cv::minMaxIdx(std::get<0>(match_result_), &min, &max);
+      std::cout << "done in " << sw.get() << " ms ... [ " << min << " , " << max << " ]" << std::endl;
+    }
+
+    // updating distribution --------------------------------------------------
+    if (print_info)
+    {
+      std::cout << "updating distribution ... " << std::flush;
+    }
+    sw.reset();
+    histogram_ = updateDistribution<HawkeyeMode>(histogram_, match_result_, config_.coeff_diminish_,
+                                                 config_.coeff_weight_, config_.coeff_negative_);
+    essential_time_ += sw.count();
+    if (print_info)
+    {
+      std::cout << "done in " << sw.get() << " ms" << std::endl;
+    }
+
+    // updating offset --------------------------------------------------
+    if (print_info)
+    {
+      std::cout << "updating offset ... " << std::flush;
+    }
+    sw.reset();
+    weighted_histogram_ = getWeightHistogram<HawkeyeMode>(histogram_, config_.histogram_weight_);
+    moments_ = getMoments(weighted_histogram_);
+    average_ = average(weighted_histogram_, moments_);
+    offset_ = updateOffset(offset_, average_, config_.coeff_gain_);
+    essential_time_ += sw.count();
+    if (print_info)
+    {
+      std::cout << "done in " << sw.get() << " ms "
+                << "( " << average_.x() << ", " << average_.y() << " "
+                << "/ " << offset_.x() << ", " << offset_.y() << " )" << std::endl;
+    }
+
+    // updating histogram center --------------------------------------------------
+    if (print_info)
+    {
+      std::cout << "updating histogram center ... " << std::flush;
+    }
+    sw.reset();
+    tf2::Vector3 new_offset;
+    std::tie(shifted_histogram_, center_shift_, new_offset) = shiftCenter<HawkeyeMode>(
+        histogram_, center_shift_, offset_, config_.center_shift_threshold_, config_.edge_copy_shift_);
+    essential_time_ += sw.count();
+    if (print_info)
+    {
+      std::cout << "done in " << sw.get() << " ms" << std::endl;
+    }
+    odometry_ = pose;
+    ret = histogram_center_;
+    ret.setOrigin(ret.getOrigin() + offset_);
+    offset_ = new_offset;
   }
 
-  // generating map image --------------------------------------------------
-  if (print_info)
-  {
-    std::cout << "generating map image ... " << std::flush;
-  }
-  sw.reset();
-  submap_ = map.getImageRange(histogram_center_.getOrigin(), config_.map_size_.width, config_.map_size_.height);
-  essential_time_ += sw.count();
-  if (print_info)
-  {
-    std::cout << "done in " << sw.get() << " ms" << std::endl;
-    std::cout << "histogram center : " << histogram_center_.getOrigin().x() << ", "
-              << histogram_center_.getOrigin().y();
-    std::cout << " ( " << center_shift_.x() << ", " << center_shift_.y();
-    std::cout << " / " << offset_.x() << ", " << offset_.y() << " )" << std::endl;
-  }
-
-  // matching --------------------------------------------------
-  if (print_info)
-  {
-    std::cout << "matching ... " << std::flush;
-  }
-  sw.reset();
-  match_result_ = matchTemplate(submap_, map.getScale(), template_image_, use_cv_tm_mask_);
-  essential_time_ += sw.count();
-  if (print_info)
-  {
-    std::cout << "done in " << sw.get() << " ms" << std::endl;
-  }
-
-  // updating distribution --------------------------------------------------
-  if (print_info)
-  {
-    std::cout << "updating distribution ... " << std::flush;
-  }
-  sw.reset();
-  histogram_ = updateDistribution<HawkeyeMode>(histogram_, match_result_, config_.coeff_diminish_,
-                                               config_.coeff_weight_, config_.coeff_negative_);
-  essential_time_ += sw.count();
-  if (print_info)
-  {
-    std::cout << "done in " << sw.get() << " ms" << std::endl;
-  }
-
-  // updating offset --------------------------------------------------
-  if (print_info)
-  {
-    std::cout << "updating offset ... " << std::flush;
-  }
-  sw.reset();
-  weighted_histogram_ = getWeightHistogram<HawkeyeMode>(histogram_, config_.histogram_weight_);
-  moments_ = getMoments(weighted_histogram_);
-  average_ = average(weighted_histogram_, moments_);
-  offset_ = updateOffset(offset_, average_, config_.coeff_gain_);
-  essential_time_ += sw.count();
-  if (print_info)
-  {
-    std::cout << "done in " << sw.get() << " ms "
-              << "( " << average_.x() << ", " << average_.y() << " "
-              << "/ " << offset_.x() << ", " << offset_.y() << " )" << std::endl;
-  }
-
-  // updating histogram center --------------------------------------------------
-  if (print_info)
-  {
-    std::cout << "updating histogram center ... " << std::flush;
-  }
-  sw.reset();
-  tf2::Vector3 new_offset;
-  std::tie(shifted_histogram_, center_shift_, new_offset) = shiftCenter<HawkeyeMode>(
-      histogram_, center_shift_, offset_, config_.center_shift_threshold_, config_.edge_copy_shift_);
-  essential_time_ += sw.count();
-  if (print_info)
-  {
-    std::cout << "done in " << sw.get() << " ms" << std::endl;
-  }
-
-  odometry_ = pose;
   ++counter_;
-  tf2::Transform ret = histogram_center_;
-  ret.setOrigin(ret.getOrigin() + offset_);
-  offset_ = new_offset;
   return ret;
 }
 
@@ -297,7 +300,7 @@ tf2::Transform Hawkeye<HawkeyeMode>::getMatchPeak() const
 {
   auto& [hist, weight, scale] = match_result_;
   cv::Mat positive(hist.size(), hist.type());
-  cv::threshold(hist, positive, 0, 0, CV_THRESH_TOZERO);
+  cv::threshold(hist, positive, 0, 0, cv::THRESH_TOZERO);
   tf2::Transform ret = histogram_center_;
   match_result_t positive_result(positive, weight, scale);
   ret.getOrigin() += average(positive_result, getMoments(positive_result));
