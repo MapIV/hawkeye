@@ -10,8 +10,8 @@ Hawkeye - Localization with LiDAR, GNSS/INS and ortho image map
 
 [![](http://img.youtube.com/vi/HDGBGOr2-rA/0.jpg)](https://youtu.be/HDGBGOr2-rA "Hawkeye with Ground Segmentation")
 
-# Update
-## 2023/03/22
+## Update
+### 2023/03/22
 **Hawkeye and the config file for the sample are updated.**
 **To use the updated Hawkeye, please re-download the config file.**
 
