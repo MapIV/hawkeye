@@ -25,20 +25,6 @@
   <arg name="ortho_map" if="$(eval arg('sample_dir') == '')"/>
   <arg name="config" default="$(find hawkeye)/config/hawkeye.yaml" if="$(eval arg('sample_dir') == '')"/>
 
-  <!-- launch files and nodes -->
-  <include file="$(find eagleye_rt)/launch/eagleye_rt.launch">
-  </include>
-
-  <!-- 
-  <include file="$(find eagleye_fix2pose)/launch/fix2pose.launch">
-    <arg name="plane" value="$(arg plane)"/>
-  </include>
-  -->
-
-  <include file="$(find pandar_pointcloud)/launch/pandarXT32.launch">
-    <arg name="launch_driver" value="false"/>
-  </include>
-
   <include file="$(find hawkeye)/launch/hawkeye_rt.launch">
     <arg name="ortho_map" value="$(arg ortho_map)"/>
     <arg name="config" value="$(arg config)"/>

@@ -5,7 +5,7 @@
   <!-- Hawkeye parameters -->
   <arg name="ortho_map"/>
   <arg name="config" default="$(find hawkeye)/config/hawkeye.yaml"/>
-  <arg name="lidar_topic_name" default="points_raw"/>
+  <arg name="lidar_topic_name" default="pointcloud_raw"/>
   <arg name="extra_args" default=""/>
   <arg name="ws_mode" default="false" />
 

@@ -41,28 +41,21 @@ cd hawkeye_ws/src
 git clone https://github.com/MapIV/hawkeye.git
 ```
 
-* Clone [Eagleye](https://github.com/MapIV/eagleye.git) and checkout to [the specified commit](https://github.com/MapIV/eagleye/tree/e40555433b219d3f7df5e502c69ec04b54bcfc62) with the following command.
-When `sample.launch` is not used, `main_ros1` branch can be used instead.
+* Clone [Eagleye](https://github.com/MapIV/eagleye.git).
+We tested with [the commit 9ca1c91af97cb22ab81c2f3eb1d412247bbc56f0](https://github.com/MapIV/eagleye/tree/9ca1c91af97cb22ab81c2f3eb1d412247bbc56f0).
 ```
 git clone --recursive https://github.com/MapIV/eagleye.git
-cd eagleye
-git checkout e40555433b219d3f7df5e502c69ec04b54bcfc62
-git submodule update
-cd ..
 git clone https://github.com/MapIV/rtklib_ros_bridge.git
 git clone https://github.com/MapIV/nmea_comms.git
 git clone https://github.com/MapIV/nmea_ros_bridge.git
+git clone https://github.com/MapIV/gnss_compass_ros.git
 ```
 
 * Install MapIV's fork of RTKLIB by following [the README of Eagleye](https://github.com/MapIV/eagleye/blob/e40555433b219d3f7df5e502c69ec04b54bcfc62/README.md#rtklib).
 
-* Clone [Hesai LiDAR driver](https://gitlab.com/perceptionengine/pe-drivers/hesai_lidar.git) and checkout to [the specified commit](https://gitlab.com/perceptionengine/pe-drivers/hesai_lidar/tree/c111cc2276e98c86f5e20c59ae75ae73bc64f004) with the following command.
-When `sample.launch` is not used, `master` branch can be used instead.
+* Clone [Hesai LiDAR driver](https://github.com/MapIV/hesai_pandar.git).
 ```
-git clone https://gitlab.com/perceptionengine/pe-drivers/hesai_lidar.git
-cd hesai_lidar
-git checkout c111cc2276e98c86f5e20c59ae75ae73bc64f004
-cd ..
+git clone https://github.com/MapIV/hesai_pandar.git
 ```
 
 * Download ROS dependencies and build.
@@ -77,7 +70,7 @@ catkin_make -DCMAKE_BUILD_TYPE=Release
 roscore
 ```
 
-* Play Rosbag file.
+* Play rosbag file.
 ```
 cd <SAMPLE_DIRECTORY>
 rosparam set use_sim_time true

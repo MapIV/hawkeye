@@ -80,3 +80,15 @@ target_link_libraries(hawkeye_rt_ws
   ${YAML_CPP_LIBRARIES}
 )
 add_dependencies(hawkeye_rt_ws ${catkin_EXPORTED_TARGETS})
+
+add_library(${PROJECT_NAME}_lib
+  ${srcs}
+  ${hawkeye_srcs}
+)
+
+target_link_libraries(${PROJECT_NAME}_lib
+  ${catkin_LIBRARIES}
+  ${PCL_LIBRARIES}
+  ${OpenCV_LIBRARIES}
+  ${YAML_CPP_LIBRARIES}
+)
