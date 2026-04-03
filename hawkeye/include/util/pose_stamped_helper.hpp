@@ -29,21 +29,22 @@
 #include <vector>
 #include <map>
 
-#include <geometry_msgs/PoseStamped.h>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <rclcpp/rclcpp.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 namespace hawkeye
 {
 template <class _Ty>
-using TimeOrder_t = std::map<ros::Time, _Ty>;
+using TimeOrder_t = std::map<rclcpp::Time, _Ty>;
 
-inline bool comparePS(const geometry_msgs::PoseStamped& p1, const geometry_msgs::PoseStamped& p2)
+inline bool comparePS(const geometry_msgs::msg::PoseStamped& p1, const geometry_msgs::msg::PoseStamped& p2)
 {
-  return p1.header.stamp < p2.header.stamp;
+  return rclcpp::Time(p1.header.stamp) < rclcpp::Time(p2.header.stamp);
 }
-inline bool equalPS(const geometry_msgs::PoseStamped& p1, const geometry_msgs::PoseStamped& p2)
+inline bool equalPS(const geometry_msgs::msg::PoseStamped& p1, const geometry_msgs::msg::PoseStamped& p2)
 {
-  return p1.header.stamp == p2.header.stamp;
+  return rclcpp::Time(p1.header.stamp) == rclcpp::Time(p2.header.stamp);
 }
 
 enum class find_result
@@ -72,29 +73,29 @@ inline find_result operator|(const find_result l, const find_result r)
   return find_result(int(l) | int(r));
 }
 
-std::tuple<find_result, typename std::vector<geometry_msgs::PoseStamped>::const_iterator,
-           typename std::vector<geometry_msgs::PoseStamped>::const_iterator>
-findBoundWithResult(const std::vector<geometry_msgs::PoseStamped>& traj_csv, const ros::Time& stamp);
-std::tuple<find_result, typename TimeOrder_t<geometry_msgs::Pose>::const_iterator,
-           typename TimeOrder_t<geometry_msgs::Pose>::const_iterator>
-findBoundWithResult(const TimeOrder_t<geometry_msgs::Pose>& traj_csv, const ros::Time& stamp);
+std::tuple<find_result, typename std::vector<geometry_msgs::msg::PoseStamped>::const_iterator,
+           typename std::vector<geometry_msgs::msg::PoseStamped>::const_iterator>
+findBoundWithResult(const std::vector<geometry_msgs::msg::PoseStamped>& traj_csv, const rclcpp::Time& stamp);
+std::tuple<find_result, typename TimeOrder_t<geometry_msgs::msg::Pose>::const_iterator,
+           typename TimeOrder_t<geometry_msgs::msg::Pose>::const_iterator>
+findBoundWithResult(const TimeOrder_t<geometry_msgs::msg::Pose>& traj_csv, const rclcpp::Time& stamp);
 
-inline double getInterpolateRate(const ros::Time& target, const ros::Time& before, const ros::Time& after)
+inline double getInterpolateRate(const rclcpp::Time& target, const rclcpp::Time& before, const rclcpp::Time& after)
 {
-  double passed = (target - before).toNSec();
-  double range = (after - before).toNSec();
+  double passed = static_cast<double>((target - before).nanoseconds());
+  double range = static_cast<double>((after - before).nanoseconds());
   return passed / range;
 }
 
 tf2::Transform interpolatePose(const tf2::Transform& before, const tf2::Transform& after, double t);
-tf2::Transform interpolatePose(const geometry_msgs::Pose& before, const geometry_msgs::Pose& after, double t);
+tf2::Transform interpolatePose(const geometry_msgs::msg::Pose& before, const geometry_msgs::msg::Pose& after, double t);
 
-std::optional<tf2::Transform> findPose(const std::vector<geometry_msgs::PoseStamped>& traj_csv, size_t& prev,
-                                       const ros::Time& stamp);
+std::optional<tf2::Transform> findPose(const std::vector<geometry_msgs::msg::PoseStamped>& traj_csv, size_t& prev,
+                                       const rclcpp::Time& stamp);
 
-std::optional<tf2::Transform> findPoseInterpolated(const std::vector<geometry_msgs::PoseStamped>& traj_csv,
-                                                   const ros::Time& stamp);
-std::optional<tf2::Transform> findPoseInterpolated(const TimeOrder_t<geometry_msgs::PoseStamped>& traj_csv,
-                                                   const ros::Time& stamp);
+std::optional<tf2::Transform> findPoseInterpolated(const std::vector<geometry_msgs::msg::PoseStamped>& traj_csv,
+                                                   const rclcpp::Time& stamp);
+std::optional<tf2::Transform> findPoseInterpolated(const TimeOrder_t<geometry_msgs::msg::PoseStamped>& traj_csv,
+                                                   const rclcpp::Time& stamp);
 
 }  // namespace hawkeye

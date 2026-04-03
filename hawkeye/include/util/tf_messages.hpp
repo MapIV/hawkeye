@@ -27,12 +27,12 @@
 
 #include <optional>
 
-#include <ros/ros.h>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <rclcpp/rclcpp.hpp>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/static_transform_broadcaster.h>
-#include <visualization_msgs/MarkerArray.h>
-#include <nav_msgs/Path.h>
+#include <visualization_msgs/msg/marker_array.hpp>
+#include <nav_msgs/msg/path.hpp>
 
 namespace hawkeye
 {
@@ -52,23 +52,21 @@ void tf2_print(Output_& out, const std::string& name, const tf2::Transform& tf)
 class TfTrajPublisher
 {
 public:
-  TfTrajPublisher(ros::NodeHandle& node) : node_{ node }
-  {
-  }
+  TfTrajPublisher(rclcpp::Node* node);
 
   bool remove(const std::string& frame_target);
   bool reset(const std::string& frame_target);
 
   bool addNewPublisher(const std::string& frame_target, const std::string& topic_name, const std::string& frame_base);
 
-  void broadcastStatic(const std::string& frame_target, const tf2::Transform& tf_tf2, const ros::Time& time,
+  void broadcastStatic(const std::string& frame_target, const tf2::Transform& tf_tf2, const rclcpp::Time& time,
                        const std::string& frame_base);
-  bool broadcast(const std::string& frame_target, const tf2::Transform& tf_tf2, const ros::Time& time);
+  bool broadcast(const std::string& frame_target, const tf2::Transform& tf_tf2, const rclcpp::Time& time);
 
 private:
-  ros::NodeHandle& node_;
+  rclcpp::Node* node_;
 
-  using traj_t = std::pair<ros::Publisher, nav_msgs::Path>;
+  using traj_t = std::pair<rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr, nav_msgs::msg::Path>;
   tf2_ros::TransformBroadcaster dynamic_broadcaster_;
   tf2_ros::StaticTransformBroadcaster static_broadcaster_;
   std::map<std::string, traj_t> markers_;

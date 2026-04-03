@@ -28,8 +28,9 @@
 #include <string>
 
 #include <opencv2/opencv.hpp>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
-#include <nav_msgs/OccupancyGrid.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+#include <nav_msgs/msg/occupancy_grid.hpp>
+#include <std_msgs/msg/header.hpp>
 
 #include "hawkeye_define.hpp"
 
@@ -82,8 +83,8 @@ public:
 
   bool ckeckGridLatest(const tf2::Vector3& pos, size_t range) const;
 
-  const nav_msgs::OccupancyGrid& getGridAround(const std_msgs::Header& header, const tf2::Vector3& pos,
-                                               size_t range = 1);
+  const nav_msgs::msg::OccupancyGrid& getGridAround(const std_msgs::msg::Header& header, const tf2::Vector3& pos,
+                                                    size_t range = 1);
 
 private:
   inline uchar at(tf2::Vector3 pos) const
@@ -150,7 +151,7 @@ private:
   bool classify_emptiness_;
   struct
   {
-    nav_msgs::OccupancyGrid data_;
+    nav_msgs::msg::OccupancyGrid data_;
     std::optional<std::tuple<int, int, size_t>> last_info_;
   } og_map_;
 };

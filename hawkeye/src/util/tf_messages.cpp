@@ -27,6 +27,11 @@
 
 namespace hawkeye
 {
+TfTrajPublisher::TfTrajPublisher(rclcpp::Node* node)
+  : node_{ node }, dynamic_broadcaster_{ node }, static_broadcaster_{ node }
+{
+}
+
 bool TfTrajPublisher::addNewPublisher(const std::string& frame_target, const std::string& topic_name,
                                       const std::string& frame_base)
 {
@@ -34,10 +39,10 @@ bool TfTrajPublisher::addNewPublisher(const std::string& frame_target, const std
   {
     return false;
   }
-  auto [iter, b] =
-      markers_.insert(std::make_pair(frame_target, traj_t{ node_.advertise<nav_msgs::Path>(topic_name, 1, true), {} }));
-  auto& path = iter->second.second;
+  nav_msgs::msg::Path path;
   path.header.frame_id = frame_base;
+  auto pub = node_->create_publisher<nav_msgs::msg::Path>(topic_name, rclcpp::QoS(1).transient_local());
+  auto [iter, b] = markers_.insert(std::make_pair(frame_target, traj_t{ pub, path }));
   std::cout << std::quoted(frame_target) << "( from " << std::quoted(frame_base) << " ) has been added." << std::endl;
   return true;
 }
@@ -60,12 +65,11 @@ bool TfTrajPublisher::reset(const std::string& frame_target)
 }
 
 void TfTrajPublisher::broadcastStatic(const std::string& frame_target, const tf2::Transform& tf_tf2,
-                                      const ros::Time& time, const std::string& frame_base)
+                                      const rclcpp::Time& time, const std::string& frame_base)
 {
-  geometry_msgs::TransformStamped tf_gm;
+  geometry_msgs::msg::TransformStamped tf_gm;
   tf2::convert(tf_tf2, tf_gm.transform);
   tf_gm.header.stamp = time;
-  tf_gm.header.seq = 0;
   tf_gm.header.frame_id = frame_base;
   tf_gm.child_frame_id = frame_target;
   static_broadcaster_.sendTransform(tf_gm);
@@ -73,7 +77,8 @@ void TfTrajPublisher::broadcastStatic(const std::string& frame_target, const tf2
             << " has been broadcasted." << std::endl;
 }
 
-bool TfTrajPublisher::broadcast(const std::string& frame_target, const tf2::Transform& tf_tf2, const ros::Time& time)
+bool TfTrajPublisher::broadcast(const std::string& frame_target, const tf2::Transform& tf_tf2,
+                                const rclcpp::Time& time)
 {
   auto iter = markers_.find(frame_target);
   if (iter == markers_.end())
@@ -81,15 +86,14 @@ bool TfTrajPublisher::broadcast(const std::string& frame_target, const tf2::Tran
     std::cout << std::quoted(frame_target) << " cannot be broadcasted." << std::endl;
     return false;
   }
-  geometry_msgs::TransformStamped tf_gm;
+  geometry_msgs::msg::TransformStamped tf_gm;
   tf2::convert(tf_tf2, tf_gm.transform);
   tf_gm.header.stamp = time;
-  tf_gm.header.seq = 0;
   tf_gm.header.frame_id = iter->second.second.header.frame_id;
   tf_gm.child_frame_id = frame_target;
   dynamic_broadcaster_.sendTransform(tf_gm);
 
-  geometry_msgs::PoseStamped pose;
+  geometry_msgs::msg::PoseStamped pose;
   pose.pose.position.x = tf_gm.transform.translation.x;
   pose.pose.position.y = tf_gm.transform.translation.y;
   pose.pose.position.z = tf_gm.transform.translation.z;
@@ -98,7 +102,7 @@ bool TfTrajPublisher::broadcast(const std::string& frame_target, const tf2::Tran
   auto& path = iter->second.second;
   path.poses.push_back(pose);
   path.header = tf_gm.header;
-  iter->second.first.publish(path);
+  iter->second.first->publish(path);
   std::cout << std::quoted(frame_target) << " has been broadcasted." << std::endl;
   return true;
 }

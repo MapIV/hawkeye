@@ -1,0 +1,26 @@
+{
+  "name": "hawkeye (ROS 2 Humble)",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "workspaceFolder": "/workspace/src/hawkeye",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace/src/hawkeye,type=bind",
+  "postCreateCommand": "cd /workspace && rosdep update && rosdep install --from-paths src --ignore-src -r -y",
+  "postStartCommand": "source /opt/ros/humble/setup.bash",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cpptools",
+        "ms-vscode.cmake-tools",
+        "twxs.cmake"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "C_Cpp.default.includePath": [
+          "/opt/ros/humble/include/**",
+          "${workspaceFolder}/include"
+        ]
+      }
+    }
+  }
+}

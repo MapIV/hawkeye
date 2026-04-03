@@ -1,0 +1,45 @@
+name: Build
+
+on:
+  push:
+    branches: [develop, develop-ros2, main]
+  pull_request:
+    branches: [develop, develop-ros2, main]
+
+jobs:
+  build-ros1:
+    name: ROS 1 (Noetic)
+    runs-on: ubuntu-latest
+    if: github.base_ref == 'develop' || github.ref == 'refs/heads/develop' || github.base_ref == 'main' || github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t hawkeye-noetic -f .devcontainer/Dockerfile.noetic .devcontainer/ 2>/dev/null || docker build -t hawkeye-noetic .devcontainer/
+
+      - name: Build with catkin
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace/src/hawkeye \
+            hawkeye-noetic \
+            bash -c "source /opt/ros/noetic/setup.bash && cd /workspace && catkin_make 2>&1"
+
+  build-ros2:
+    name: ROS 2 (Humble)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t hawkeye-humble .devcontainer/
+
+      - name: Build with colcon
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace/src/hawkeye \
+            hawkeye-humble \
+            bash -c "
+              source /opt/ros/humble/setup.bash && \
+              cd /workspace && \
+              colcon build --symlink-install 2>&1
+            "

@@ -27,8 +27,11 @@
 #include "util/error.hpp"
 #include "util/timer.hpp"
 
-#include <boost/filesystem.hpp>
-#include <tf2_eigen/tf2_eigen.h>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+#include <iomanip>
+#include <tf2_eigen/tf2_eigen.hpp>
 
 template <typename T>
 void getFileElements(std::ifstream& ifs, const std::string& filename, T&& ref)
@@ -133,7 +136,7 @@ OrthoMap::OrthoMap(const std::string& orthomap_filename) : orthomap_filename_{ o
       }
     }
     {
-      auto filename_length = boost::filesystem::path(orthomap_filename_).filename().string().size();
+      auto filename_length = std::filesystem::path(orthomap_filename_).filename().string().size();
       prefix = orthomap_filename_.substr(0, orthomap_filename_.size() - filename_length) + prefix;
     }
   }

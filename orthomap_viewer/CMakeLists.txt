@@ -1,29 +1,26 @@
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 3.8)
 project(orthomap_viewer)
 
 set(CMAKE_CXX_STANDARD 17)
 
-find_package(Boost REQUIRED)
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(pcl_conversions REQUIRED)
 find_package(PCL REQUIRED)
-find_package(catkin REQUIRED)
 find_package(OpenCV REQUIRED)
 
-find_package(catkin REQUIRED COMPONENTS
-  roscpp
+set(deps
+  rclcpp
   std_msgs
   nav_msgs
-  pcl_ros
   sensor_msgs
+  pcl_conversions
 )
 
-catkin_package(
-  #INCLUDE_DIRS include
-  DEPENDS PCL
-  DEPENDS OpenCV
-)
-
-include_directories(include
-  ${catkin_INCLUDE_DIRS}
+include_directories(
   ${PCL_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
 )
@@ -31,9 +28,14 @@ include_directories(include
 add_executable(orthomap_viewer
   src/orthomap_viewer.cpp
 )
+ament_target_dependencies(orthomap_viewer ${deps})
 target_link_libraries(orthomap_viewer
-  ${catkin_LIBRARIES}
+  ${PCL_LIBRARIES}
   ${OpenCV_LIBRARIES}
 )
 
-add_dependencies(orthomap_viewer ${catkin_EXPORTED_TARGETS})
+install(TARGETS orthomap_viewer
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+ament_package()

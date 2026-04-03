@@ -101,8 +101,8 @@ bool OrthoMap::ckeckGridLatest(const tf2::Vector3& pos, size_t range) const
   return false;
 }
 
-const nav_msgs::OccupancyGrid& OrthoMap::getGridAround(const std_msgs::Header& header, const tf2::Vector3& pos,
-                                                       size_t range)
+const nav_msgs::msg::OccupancyGrid& OrthoMap::getGridAround(const std_msgs::msg::Header& header,
+                                                            const tf2::Vector3& pos, size_t range)
 {
   og_map_.data_.header = header;
   og_map_.data_.info.origin.position.z = pos.z();

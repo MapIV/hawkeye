@@ -25,12 +25,12 @@
 
 #pragma once
 
-#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
 
 #include "hawkeye_define.hpp"
 #include "util/pose_stamped_helper.hpp"
 
-#include <sensor_msgs/NavSatFix.h>
+#include <sensor_msgs/msg/nav_sat_fix.hpp>
 
 namespace hawkeye
 {
@@ -40,9 +40,10 @@ public:
   using this_type = PoseInterpolationSubscriber;
 
   PoseInterpolationSubscriber(bool check_eagleye_error = false)
-    : check_eageye_error_{ check_eagleye_error }, check_eageye_error2_{ false } {};
+    : check_eageye_error_{ check_eagleye_error }, check_eageye_error2_{ false }
+    , eagleye_enabled_time_{ rclcpp::Time(0, 0, RCL_ROS_TIME) } {};
 
-  bool addPose(const geometry_msgs::PoseStamped& pose_stamped)
+  bool addPose(const geometry_msgs::msg::PoseStamped& pose_stamped)
   {
     if (check_eageye_error_ && pose_stamped.pose.position.x == 0 && pose_stamped.pose.position.y == 0 &&
         pose_stamped.pose.position.z == 0)
@@ -51,13 +52,13 @@ public:
     }
     if (check_eageye_error2_)
     {
-      if (eagleye_enabled_time_.is_zero())
+      if (eagleye_enabled_time_.nanoseconds() == 0)
       {
         return false;
       }
-      if (eagleye_enabled_time_ > pose_stamped.header.stamp)
+      if (eagleye_enabled_time_ > rclcpp::Time(pose_stamped.header.stamp))
       {
-        std::cout << pose_stamped.header.stamp.toNSec() << " is not valid" << std::endl;
+        std::cout << rclcpp::Time(pose_stamped.header.stamp).nanoseconds() << " is not valid" << std::endl;
         return false;
       }
     }
@@ -65,27 +66,31 @@ public:
     {
       return false;
     }
-    pose_map_.insert_or_assign(pose_stamped.header.stamp, pose_stamped.pose);
+    pose_map_.insert_or_assign(rclcpp::Time(pose_stamped.header.stamp), pose_stamped.pose);
     return true;
   }
 
-  void addPoseSubscriber(ros::NodeHandle& nh, const std::string& name, uint32_t queue_size,
+  void addPoseSubscriber(rclcpp::Node* node, const std::string& name, uint32_t queue_size,
                          const std::string& frame_name = "")
   {
-    pose_subsciber_ = nh.subscribe(name, queue_size, &this_type::callbackPose, this);
+    pose_subsciber_ = node->create_subscription<geometry_msgs::msg::PoseStamped>(
+        name, queue_size,
+        [this](const geometry_msgs::msg::PoseStamped::SharedPtr ptr) { addPose(*ptr); });
     pose_frame_ = frame_name;
   }
 
-  void addEagleyeCheckSubscriber(ros::NodeHandle& nh, const std::string& name, uint32_t queue_size)
+  void addEagleyeCheckSubscriber(rclcpp::Node* node, const std::string& name, uint32_t queue_size)
   {
     check_eageye_error2_ = true;
-    eagleye_check_subscriber_ = nh.subscribe(name, queue_size, &this_type::callbackChecker, this);
+    eagleye_check_subscriber_ = node->create_subscription<sensor_msgs::msg::NavSatFix>(
+        name, queue_size,
+        [this](const sensor_msgs::msg::NavSatFix::SharedPtr ptr) { callbackChecker(ptr); });
   }
 
 protected:
-  using interpolated_pose_iter = std::pair<TimeOrder_t<geometry_msgs::Pose>::const_iterator, tf2::Transform>;
+  using interpolated_pose_iter = std::pair<TimeOrder_t<geometry_msgs::msg::Pose>::const_iterator, tf2::Transform>;
 
-  interpolated_pose_iter findForStamp_NoCheck(const ros::Time& stamp) const
+  interpolated_pose_iter findForStamp_NoCheck(const rclcpp::Time& stamp) const
   {
     auto [result, before, after] = findBoundWithResult(pose_map_, stamp);
     tf2::Transform ret;
@@ -102,43 +107,38 @@ protected:
   }
 
 private:
-  void callbackPose(const geometry_msgs::PoseStamped::Ptr ptr)
+  void callbackChecker(const sensor_msgs::msg::NavSatFix::SharedPtr ptr)
   {
-    addPose(*ptr);
-  }
-
-  void callbackChecker(const sensor_msgs::NavSatFix::Ptr ptr)
-  {
-    if (eagleye_enabled_time_.is_zero() && check_eageye_error2_ && ptr->status.service == 0)
+    if (eagleye_enabled_time_.nanoseconds() == 0 && check_eageye_error2_ && ptr->status.service == 0)
     {
-      eagleye_enabled_time_ = ptr->header.stamp;
-      std::cout << "eagleye is valid after " << eagleye_enabled_time_.toNSec() << std::endl;
+      eagleye_enabled_time_ = rclcpp::Time(ptr->header.stamp);
+      std::cout << "eagleye is valid after " << eagleye_enabled_time_.nanoseconds() << std::endl;
     }
   }
 
 protected:
-  TimeOrder_t<geometry_msgs::Pose> pose_map_;
+  TimeOrder_t<geometry_msgs::msg::Pose> pose_map_;
 
 private:
   bool check_eageye_error_;
   bool check_eageye_error2_;
   std::string pose_frame_;
-  ros::Subscriber pose_subsciber_;
-  ros::Subscriber eagleye_check_subscriber_;
-  ros::Time eagleye_enabled_time_;
+  rclcpp::SubscriptionBase::SharedPtr pose_subsciber_;
+  rclcpp::SubscriptionBase::SharedPtr eagleye_check_subscriber_;
+  rclcpp::Time eagleye_enabled_time_;
 };
 
 // --- PoseSychronizer ---
-// synchronize geometry_msgs/PoseStamped and topic with header by inpterpolating poses and return tf2/Transform
+// synchronize geometry_msgs/PoseStamped and topic with header by interpolating poses and return tf2/Transform
 template <typename _Ty, bool return_ptr>
 class PoseSychronizerSub : public PoseInterpolationSubscriber
 {
 public:
   using this_type = PoseSychronizerSub;
-  using topic_ptr_type = typename _Ty::Ptr;
+  using topic_ptr_type = std::shared_ptr<_Ty>;
   using topic_raw_type = _Ty;
   using topic_return_type = std::conditional_t<return_ptr, topic_ptr_type, topic_raw_type>;
-  using return_tuple_type = std::tuple<tf2::Transform, topic_return_type, ros::Time>;
+  using return_tuple_type = std::tuple<tf2::Transform, topic_return_type, rclcpp::Time>;
 
   PoseSychronizerSub(bool check_eagleye_error = false) : PoseInterpolationSubscriber{ check_eagleye_error } {};
 
@@ -150,12 +150,12 @@ public:
 
   bool addTopic(const topic_return_type& topic)
   {
-    std_msgs::Header const* const header = getTopicHeaderPtr(topic);
+    std_msgs::msg::Header const* const header = getTopicHeaderPtr(topic);
     if (!topic_frame_.empty() && header->frame_id != topic_frame_)
     {
       return false;
     }
-    topic_map_.insert_or_assign(header->stamp, topic);
+    topic_map_.insert_or_assign(rclcpp::Time(header->stamp), topic);
     return true;
   }
   bool addTopicPtr(const topic_ptr_type& topic_ptr)
@@ -170,10 +170,12 @@ public:
     }
   }
 
-  void addTopicSubscriber(ros::NodeHandle& nh, const std::string& name, uint32_t queue_size,
+  void addTopicSubscriber(rclcpp::Node* node, const std::string& name, uint32_t queue_size,
                           const std::string& frame_name = "")
   {
-    topic_subsciber_ = nh.subscribe(name, queue_size, &this_type::callbackTopic, this);
+    topic_subsciber_ = node->create_subscription<topic_raw_type>(
+        name, queue_size,
+        [this](const topic_ptr_type ptr) { addTopicPtr(ptr); });
     topic_frame_ = frame_name;
   }
 
@@ -229,11 +231,11 @@ private:
   using const_topic_iter = typename TimeOrder_t<topic_return_type>::const_iterator;
   using mid_result_t = std::pair<interpolated_pose_iter, const_topic_iter>;
 
-  static const std_msgs::Header* const getTopicHeaderPtr(const topic_ptr_type& topic)
+  static const std_msgs::msg::Header* const getTopicHeaderPtr(const topic_ptr_type& topic)
   {
     return &(topic->header);
   }
-  static const std_msgs::Header* const getTopicHeaderPtr(const topic_raw_type& topic)
+  static const std_msgs::msg::Header* const getTopicHeaderPtr(const topic_raw_type& topic)
   {
     return &(topic.header);
   }
@@ -250,15 +252,10 @@ private:
     return { findForStamp_NoCheck(topic_it->first), topic_it };
   }
 
-  void callbackTopic(const topic_ptr_type ptr)
-  {
-    addTopicPtr(ptr);
-  }
-
 private:
   TimeOrder_t<topic_return_type> topic_map_;
   std::string topic_frame_;
-  ros::Subscriber topic_subsciber_;
+  rclcpp::SubscriptionBase::SharedPtr topic_subsciber_;
 };
 
 template <typename _Ty>
@@ -271,7 +268,7 @@ public:
 };
 
 template <typename _Ty>
-class PoseSychronizer<boost::shared_ptr<_Ty>> : public PoseSychronizerSub<_Ty, true>
+class PoseSychronizer<std::shared_ptr<_Ty>> : public PoseSychronizerSub<_Ty, true>
 {
 public:
   PoseSychronizer(bool check_eagleye_error = false) : PoseSychronizerSub<_Ty, true>{ check_eagleye_error }
