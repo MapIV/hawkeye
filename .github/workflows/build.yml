@@ -1,0 +1,27 @@
+name: Build
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t hawkeye-dev .devcontainer/
+
+      - name: Build with catkin
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace/src/hawkeye \
+            hawkeye-dev \
+            bash -c "
+              source /opt/ros/noetic/setup.bash && \
+              cd /workspace && \
+              catkin_make 2>&1
+            "
