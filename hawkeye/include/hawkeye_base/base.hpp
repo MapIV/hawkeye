@@ -25,7 +25,8 @@
 
 #pragma once
 
-#include <visualization_msgs/MarkerArray.h>
+#include <visualization_msgs/msg/marker_array.hpp>
+#include <std_msgs/msg/header.hpp>
 
 #include "hawkeye_define.hpp"
 #include "hawkeye_base/histogram.hpp"
@@ -78,8 +79,8 @@ std::tuple<histogram_t, tf2::Vector3, tf2::Vector3> shiftCenter(const histogram_
                                                                 const tf2::Vector3& center, const tf2::Vector3& offset,
                                                                 double threshold_rate, bool edge_copy_shift = true);
 
-void setHistogramMarkers(visualization_msgs::MarkerArray& ma, const weighted_histogram_t& histogram,
-                         const tf2::Transform& odometry, const std_msgs::Header& header, bool as_array = false);
+void setHistogramMarkers(visualization_msgs::msg::MarkerArray& ma, const weighted_histogram_t& histogram,
+                         const tf2::Transform& odometry, const std_msgs::msg::Header& header, bool as_array = false);
 
 cv::Mat convertHistogram2CVU8C1(const cv::Mat& histogram);
 cv::Mat convertHistogram2CVU8C1(const weighted_histogram_t& histogram);

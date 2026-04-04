@@ -329,8 +329,8 @@ cv::Mat Hawkeye<HawkeyeMode>::getWeightImage() const
 }
 
 template <typename HawkeyeMode>
-const visualization_msgs::MarkerArray& Hawkeye<HawkeyeMode>::getHistogramMarkers(const std_msgs::Header& header,
-                                                                                 bool as_array)
+const visualization_msgs::msg::MarkerArray& Hawkeye<HawkeyeMode>::getHistogramMarkers(
+    const std_msgs::msg::Header& header, bool as_array)
 {
   setHistogramMarkers(marker_array_, weighted_histogram_, histogram_center_, header, as_array);
   return marker_array_;

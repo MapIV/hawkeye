@@ -25,7 +25,8 @@
 
 #pragma once
 
-#include <visualization_msgs/MarkerArray.h>
+#include <visualization_msgs/msg/marker_array.hpp>
+#include <std_msgs/msg/header.hpp>
 
 #include "hawkeye_define.hpp"
 #include "hawkeye_base/histogram.hpp"
@@ -86,7 +87,8 @@ public:
   cv::Mat getSubmapImage() const;
   cv::Mat getWeightImage() const;
 
-  const visualization_msgs::MarkerArray& getHistogramMarkers(const std_msgs::Header& header, bool as_array = false);
+  const visualization_msgs::msg::MarkerArray& getHistogramMarkers(const std_msgs::msg::Header& header,
+                                                                  bool as_array = false);
 
 private:
   void adjustPCs();
@@ -111,7 +113,7 @@ private:
   double essential_time_;
   size_t counter_;
 
-  visualization_msgs::MarkerArray marker_array_;
+  visualization_msgs::msg::MarkerArray marker_array_;
 
   const Config config_;
   const double histogram_weight_;

@@ -23,13 +23,16 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
 #include <pcl/conversions.h>
 #include <pcl/common/transforms.h>
-#include <pcl_ros/point_cloud.h>
-#include <tf2_eigen/tf2_eigen.h>
+#include <pcl_conversions/pcl_conversions.h>
+#include <tf2_eigen/tf2_eigen.hpp>
 #include <cv_bridge/cv_bridge.h>
-#include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <nav_msgs/msg/occupancy_grid.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
+#include <sensor_msgs/msg/image.hpp>
 
 #include "hawkeye_define.hpp"
 #include "hawkeye_base/node.hpp"
@@ -49,13 +52,13 @@ double getYaw(const tf2::Transform& tf)
   return yaw;
 }
 
-class HawkeyeM4Node
+class HawkeyeM4Node : public rclcpp::Node
 {
 public:
   HawkeyeM4Node(const std::string& orthomap_filename, const std::string& config_filename,
                 const std::string& lidar_topic_name,
                 const hawkeye_base::HawkeyeConfig& config = hawkeye_base::HawkeyeConfig::defaultConfig())
-    : node_handle_{ "" }, counter_{ 0 }, pose_synchronizer_{ false }, times_{ 0 }, essential_times_{ 0 }
+    : rclcpp::Node("hawkeye_rt"), counter_{ 0 }, pose_synchronizer_{ false }, times_{ 0 }, essential_times_{ 0 }
   {
     Stopwatch sw;
 
@@ -66,25 +69,25 @@ public:
     map_.emplace(orthomap_filename);
 
     // setting ros publishers --------------------------------------------------
-    pose_synchronizer_.addPoseSubscriber(node_handle_, "/eagleye/pose", 100);
-    pose_synchronizer_.addEagleyeCheckSubscriber(node_handle_, "/eagleye/fix", 100);
-    pose_synchronizer_.addTopicSubscriber(node_handle_, lidar_topic_name, 4);
+    pose_synchronizer_.addPoseSubscriber(this, "/eagleye/pose", 100);
+    pose_synchronizer_.addEagleyeCheckSubscriber(this, "/eagleye/fix", 100);
+    pose_synchronizer_.addTopicSubscriber(this, lidar_topic_name, 4);
 
-    broadcaster_.emplace(node_handle_);
+    broadcaster_.emplace(this);
     broadcaster_->addNewPublisher("raw_tf", "raw_path", "local_map");
     broadcaster_->addNewPublisher("histogram_center", "histogram_center_path", "local_map");
     broadcaster_->addNewPublisher("estimated", "estimated_path", "local_map");
     broadcaster_->addNewPublisher("histogram_peak", "histogram_peak_path", "local_map");
     broadcaster_->addNewPublisher("match_peak", "match_peak_path", "local_map");
 
-    pc_publisher_ = node_handle_.advertise<sensor_msgs::PointCloud2>("point_cloud", 5, false);
-    map_publisher_ = node_handle_.advertise<nav_msgs::OccupancyGrid>("ortho_map", 1, false);
-    histogram_publisher_ = node_handle_.advertise<visualization_msgs::MarkerArray>("histogram", 5, false);
-    template_image_publisher_ = node_handle_.advertise<sensor_msgs::Image>("template_image", 5);
-    match_image_publisher_ = node_handle_.advertise<sensor_msgs::Image>("match_image", 5);
-    submap_image_publisher_ = node_handle_.advertise<sensor_msgs::Image>("submap_image", 5);
+    pc_publisher_ = create_publisher<sensor_msgs::msg::PointCloud2>("point_cloud", 5);
+    map_publisher_ = create_publisher<nav_msgs::msg::OccupancyGrid>("ortho_map", 1);
+    histogram_publisher_ = create_publisher<visualization_msgs::msg::MarkerArray>("histogram", 5);
+    template_image_publisher_ = create_publisher<sensor_msgs::msg::Image>("template_image", 5);
+    match_image_publisher_ = create_publisher<sensor_msgs::msg::Image>("match_image", 5);
+    submap_image_publisher_ = create_publisher<sensor_msgs::msg::Image>("submap_image", 5);
 
-    broadcaster_->broadcastStatic("local_map", map_->center(), ros::Time::now(), "map");
+    broadcaster_->broadcastStatic("local_map", map_->center(), this->now(), "map");
 
     // setting filter --------------------------------------------------
     hawkeye_.emplace(map_->getScale(), config);
@@ -119,10 +122,10 @@ public:
   void run(double rate = 10, bool small_overhead = false)
   {
     std::cout << "start" << std::endl;
-    ros::Rate r(rate);
-    while (ros::ok())
+    rclcpp::Rate r(rate);
+    while (rclcpp::ok())
     {
-      ros::spinOnce();
+      rclcpp::spin_some(shared_from_this());
       runOnce(small_overhead);
       r.sleep();
     }
@@ -138,8 +141,8 @@ public:
   }
 
 private:
-  void update(const sensor_msgs::PointCloud2::Ptr& ptr, const tf2::Transform& odometry, const ros::Time stamp,
-              bool small_overhead = false)
+  void update(const sensor_msgs::msg::PointCloud2::SharedPtr& ptr, const tf2::Transform& odometry,
+              const rclcpp::Time stamp, bool small_overhead = false)
   {
     Stopwatch sw, loop_sw;
     double essential_time = 0;
@@ -191,16 +194,15 @@ private:
         // publish ground point cloud --------------------------------------------------
         std::cout << "publish point cloud ... " << std::flush;
         sw.reset();
-        geometry_msgs::TransformStamped tf_gm;
+        geometry_msgs::msg::TransformStamped tf_gm;
         PC_t shift_pc;
-        sensor_msgs::PointCloud2 pcl_pc;
+        sensor_msgs::msg::PointCloud2 pcl_pc;
         tf2::convert(ans * hawkeye_->getLidarTf(), tf_gm.transform);
-        // tf_gm.transform.translation.z = 0;
         pcl::transformPointCloud(*ground, shift_pc, tf2::transformToEigen(tf_gm).matrix());
         pcl::toROSMsg(shift_pc, pcl_pc);
         pcl_pc.header = ptr->header;
         pcl_pc.header.frame_id = "local_map";
-        pc_publisher_.publish(pcl_pc);
+        pc_publisher_->publish(pcl_pc);
         sw.count();
         std::cout << "done in " << sw.get() << " ms" << std::endl;
       }
@@ -208,31 +210,29 @@ private:
         // publish images --------------------------------------------------
         std::cout << "publish images ... " << std::flush;
         sw.reset();
-        std_msgs::Header h;
+        std_msgs::msg::Header h;
         h.frame_id = "raw_tf";
-        h.seq = 0;
         h.stamp = stamp;
-        template_image_publisher_.publish(
-            cv_bridge::CvImage(h, sensor_msgs::image_encodings::TYPE_8UC1, hawkeye_->getTemplateImage()).toImageMsg());
-        match_image_publisher_.publish(
-            cv_bridge::CvImage(h, sensor_msgs::image_encodings::TYPE_8UC1, hawkeye_->getMatchImage()).toImageMsg());
-        submap_image_publisher_.publish(
-            cv_bridge::CvImage(h, sensor_msgs::image_encodings::TYPE_8UC1, hawkeye_->getSubmapImage()).toImageMsg());
+        template_image_publisher_->publish(
+            *cv_bridge::CvImage(h, sensor_msgs::image_encodings::TYPE_8UC1, hawkeye_->getTemplateImage()).toImageMsg());
+        match_image_publisher_->publish(
+            *cv_bridge::CvImage(h, sensor_msgs::image_encodings::TYPE_8UC1, hawkeye_->getMatchImage()).toImageMsg());
+        submap_image_publisher_->publish(
+            *cv_bridge::CvImage(h, sensor_msgs::image_encodings::TYPE_8UC1, hawkeye_->getSubmapImage()).toImageMsg());
         sw.count();
         std::cout << "done in " << sw.get() << " ms" << std::endl;
       }
     }
     {
-      std_msgs::Header h;
+      std_msgs::msg::Header h;
       h.frame_id = "local_map";
-      h.seq = 0;
       h.stamp = stamp;
       {
         // publish histogram --------------------------------------------------
         std::cout << "publish histogram ... " << std::flush;
         sw.reset();
 
-        histogram_publisher_.publish(hawkeye_->getHistogramMarkers(h));
+        histogram_publisher_->publish(hawkeye_->getHistogramMarkers(h));
 
         sw.count();
         std::cout << "done in " << sw.get() << " ms" << std::endl;
@@ -245,7 +245,7 @@ private:
         bool update_map = !map_->ckeckGridLatest(ans.getOrigin(), 1);
         if (update_map)
         {
-          map_publisher_.publish(map_->getGridAround(h, ans.getOrigin(), 1));
+          map_publisher_->publish(map_->getGridAround(h, ans.getOrigin(), 1));
         }
 
         sw.count();
@@ -265,7 +265,6 @@ private:
   }
 
 private:
-  ros::NodeHandle node_handle_;
   std::optional<OrthoMap> map_;
   std::optional<hawkeye_base::Hawkeye<hawkeye_base::Hawkeye_CopyShiftMode>> hawkeye_;
 
@@ -273,15 +272,15 @@ private:
 
   bool last_updated_;
 
-  PoseSychronizer<sensor_msgs::PointCloud2::Ptr> pose_synchronizer_;
+  PoseSychronizer<sensor_msgs::msg::PointCloud2::SharedPtr> pose_synchronizer_;
 
   std::optional<TfTrajPublisher> broadcaster_;
-  ros::Publisher pc_publisher_;
-  ros::Publisher map_publisher_;
-  ros::Publisher histogram_publisher_;
-  ros::Publisher template_image_publisher_;
-  ros::Publisher match_image_publisher_;
-  ros::Publisher submap_image_publisher_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pc_publisher_;
+  rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr map_publisher_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr histogram_publisher_;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr template_image_publisher_;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr match_image_publisher_;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr submap_image_publisher_;
 
   double times_;
   double essential_times_;
@@ -311,7 +310,7 @@ void exitArg(const std::string& message = "")
 
 int main(int argc, char** argv)
 {
-  ros::init(argc, argv, "hawkeye_rt");
+  rclcpp::init(argc, argv);
   char* orthomap_filename;
   char* config_filename;
   char* lidar_topic_name;
@@ -416,9 +415,10 @@ int main(int argc, char** argv)
   std::cout << "stop_threshold           : " << config.stop_threshold_ << std::endl;
   std::cout << "(-o) small_overhead      : " << std::boolalpha << small_overhead << std::noboolalpha << std::endl;
 
-  HawkeyeM4Node node(orthomap_filename, config_filename, lidar_topic_name, config);
+  auto node = std::make_shared<HawkeyeM4Node>(orthomap_filename, config_filename, lidar_topic_name, config);
 
-  node.run(10, small_overhead);
+  node->run(10, small_overhead);
 
+  rclcpp::shutdown();
   return 0;
 }

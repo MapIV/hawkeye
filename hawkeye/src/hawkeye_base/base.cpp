@@ -422,8 +422,8 @@ cv::Mat convertHistogram2CVU8C1(const match_result_t& histogram)
   return convertHistogram2CVU8C1(hist);
 }
 
-void setHistogramMarkers(visualization_msgs::MarkerArray& ma, const weighted_histogram_t& histogram,
-                         const tf2::Transform& odometry, const std_msgs::Header& header, bool as_array)
+void setHistogramMarkers(visualization_msgs::msg::MarkerArray& ma, const weighted_histogram_t& histogram,
+                         const tf2::Transform& odometry, const std_msgs::msg::Header& header, bool as_array)
 {
   ma.markers.clear();
   auto& [image, scale] = histogram;
@@ -437,8 +437,8 @@ void setHistogramMarkers(visualization_msgs::MarkerArray& ma, const weighted_his
   }
   cv::Size size = image.size();
   auto f = [min_weight, max_weight, base_point = odometry.getOrigin(), size, scale = scale](double val, cv::Point at) {
-    geometry_msgs::Point point_out;
-    std_msgs::ColorRGBA color_out;
+    geometry_msgs::msg::Point point_out;
+    std_msgs::msg::ColorRGBA color_out;
     double rank = (val - min_weight) / (max_weight - min_weight);
     // rank *= rank;
     color_out.r = std::clamp(2 * rank, 0., 1.);
@@ -460,12 +460,12 @@ void setHistogramMarkers(visualization_msgs::MarkerArray& ma, const weighted_his
   {
     ma.markers.reserve(size.width * size.height);
 
-    visualization_msgs::Marker marker;
+    visualization_msgs::msg::Marker marker;
     {
       marker.header = header;
       marker.ns = "histogram";
-      marker.action = visualization_msgs::Marker::MODIFY;
-      marker.type = visualization_msgs::Marker::ARROW;
+      marker.action = visualization_msgs::msg::Marker::MODIFY;
+      marker.type = visualization_msgs::msg::Marker::ARROW;
 
       marker.scale.x = scale;
       marker.scale.y = scale;
@@ -493,8 +493,8 @@ void setHistogramMarkers(visualization_msgs::MarkerArray& ma, const weighted_his
     {
       marker.header = header;
       marker.ns = "histogram";
-      marker.action = visualization_msgs::Marker::MODIFY;
-      marker.type = visualization_msgs::Marker::POINTS;
+      marker.action = visualization_msgs::msg::Marker::MODIFY;
+      marker.type = visualization_msgs::msg::Marker::POINTS;
 
       marker.color.r = 0;
       marker.color.g = 1;

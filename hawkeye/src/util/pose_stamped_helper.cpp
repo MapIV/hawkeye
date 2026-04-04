@@ -59,20 +59,20 @@ inline find_result checkResult(const Iter_& bg, const Iter_& ed, const Iter_& lb
   }
 }
 
-std::tuple<find_result, typename std::vector<geometry_msgs::PoseStamped>::const_iterator,
-           typename std::vector<geometry_msgs::PoseStamped>::const_iterator>
-findBoundWithResult(const std::vector<geometry_msgs::PoseStamped>& traj_csv, const ros::Time& stamp)
+std::tuple<find_result, typename std::vector<geometry_msgs::msg::PoseStamped>::const_iterator,
+           typename std::vector<geometry_msgs::msg::PoseStamped>::const_iterator>
+findBoundWithResult(const std::vector<geometry_msgs::msg::PoseStamped>& traj_csv, const rclcpp::Time& stamp)
 {
-  geometry_msgs::PoseStamped tmp;
+  geometry_msgs::msg::PoseStamped tmp;
   tmp.header.stamp = stamp;
   auto lb = std::lower_bound(traj_csv.begin(), traj_csv.end(), tmp, comparePS);
   auto ub = std::upper_bound(traj_csv.begin(), traj_csv.end(), tmp, comparePS);
   find_result result = checkResult(traj_csv.cbegin(), traj_csv.cend(), lb, ub);
   return { result, lb, ub };
 }
-std::tuple<find_result, typename TimeOrder_t<geometry_msgs::Pose>::const_iterator,
-           typename TimeOrder_t<geometry_msgs::Pose>::const_iterator>
-findBoundWithResult(const TimeOrder_t<geometry_msgs::Pose>& traj_csv, const ros::Time& stamp)
+std::tuple<find_result, typename TimeOrder_t<geometry_msgs::msg::Pose>::const_iterator,
+           typename TimeOrder_t<geometry_msgs::msg::Pose>::const_iterator>
+findBoundWithResult(const TimeOrder_t<geometry_msgs::msg::Pose>& traj_csv, const rclcpp::Time& stamp)
 {
   auto lb = traj_csv.lower_bound(stamp);
   auto ub = traj_csv.upper_bound(stamp);
@@ -88,7 +88,7 @@ tf2::Transform interpolatePose(const tf2::Transform& before, const tf2::Transfor
   return pose;
 }
 
-tf2::Transform interpolatePose(const geometry_msgs::Pose& before, const geometry_msgs::Pose& after, double t)
+tf2::Transform interpolatePose(const geometry_msgs::msg::Pose& before, const geometry_msgs::msg::Pose& after, double t)
 {
   tf2::Transform before_tf, after_tf;
   tf2::convert(before, before_tf);
@@ -96,8 +96,8 @@ tf2::Transform interpolatePose(const geometry_msgs::Pose& before, const geometry
   return interpolatePose(before_tf, after_tf, t);
 }
 
-std::optional<tf2::Transform> findPoseInterpolated(const std::vector<geometry_msgs::PoseStamped>& traj_csv,
-                                                   const ros::Time& stamp)
+std::optional<tf2::Transform> findPoseInterpolated(const std::vector<geometry_msgs::msg::PoseStamped>& traj_csv,
+                                                   const rclcpp::Time& stamp)
 {
   auto [result, lb, ub] = findBoundWithResult(traj_csv, stamp);
   if ((result & find_result::FOUND) != find_result::NONE)
@@ -109,12 +109,13 @@ std::optional<tf2::Transform> findPoseInterpolated(const std::vector<geometry_ms
   else if (result == find_result::INTERPOLATABLE)
   {
     lb--;
-    return interpolatePose(lb->pose, ub->pose, getInterpolateRate(stamp, lb->header.stamp, ub->header.stamp));
+    return interpolatePose(lb->pose, ub->pose,
+                           getInterpolateRate(stamp, rclcpp::Time(lb->header.stamp), rclcpp::Time(ub->header.stamp)));
   }
   return std::nullopt;
 }
-std::optional<tf2::Transform> findPoseInterpolated(const TimeOrder_t<geometry_msgs::Pose>& traj_csv,
-                                                   const ros::Time& stamp)
+std::optional<tf2::Transform> findPoseInterpolated(const TimeOrder_t<geometry_msgs::msg::Pose>& traj_csv,
+                                                   const rclcpp::Time& stamp)
 {
   auto [result, lb, ub] = findBoundWithResult(traj_csv, stamp);
   if ((result & find_result::FOUND) != find_result::NONE)
@@ -131,11 +132,11 @@ std::optional<tf2::Transform> findPoseInterpolated(const TimeOrder_t<geometry_ms
   return std::nullopt;
 }
 
-std::optional<tf2::Transform> findPose(const std::vector<geometry_msgs::PoseStamped>& traj_csv, size_t& prev,
-                                       const ros::Time& stamp)
+std::optional<tf2::Transform> findPose(const std::vector<geometry_msgs::msg::PoseStamped>& traj_csv, size_t& prev,
+                                       const rclcpp::Time& stamp)
 {
   size_t id;
-  if (traj_csv[prev + 1].header.stamp == stamp)
+  if (rclcpp::Time(traj_csv[prev + 1].header.stamp) == stamp)
   {
     id = prev + 1;
     prev = id;
@@ -145,7 +146,7 @@ std::optional<tf2::Transform> findPose(const std::vector<geometry_msgs::PoseStam
     size_t l = prev, u = traj_csv.size();
     while (u - l > 1)
     {
-      auto& s = traj_csv[l + (u - l - 1) / 2].header.stamp;
+      rclcpp::Time s(traj_csv[l + (u - l - 1) / 2].header.stamp);
       if (s == stamp)
       {
         break;
@@ -165,7 +166,7 @@ std::optional<tf2::Transform> findPose(const std::vector<geometry_msgs::PoseStam
     }
     id = l + (u - l - 1) / 2;
     prev = id;
-    if (traj_csv[id].header.stamp != stamp)
+    if (rclcpp::Time(traj_csv[id].header.stamp) != stamp)
     {
       return std::nullopt;
     }

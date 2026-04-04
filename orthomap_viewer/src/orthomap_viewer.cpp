@@ -23,11 +23,12 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include <ros/ros.h>
-#include <nav_msgs/OccupancyGrid.h>
-#include <pcl_ros/point_cloud.h>
+#include <rclcpp/rclcpp.hpp>
+#include <nav_msgs/msg/occupancy_grid.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <pcl_conversions/pcl_conversions.h>
 
-#include <boost/filesystem.hpp>
+#include <filesystem>
 #include <opencv2/opencv.hpp>
 #include <pcl/io/pcd_io.h>
 
@@ -67,14 +68,12 @@ void getFileElements(std::ifstream& ifs, const std::string& filename, T&& ref)
   }
 }
 
-std::optional<nav_msgs::OccupancyGrid> draw_one(const std::string& topic_name, const std::string& tif_name, int seq);
-
 int main(int argc, char** argv)
 {
-  ros::init(argc, argv, "orthomap_view");
+  rclcpp::init(argc, argv);
   std::string input_file;
   std::string topic_name = "ortho_map";
-  bool topic_name_param;
+  bool topic_name_param = false;
   std::optional<std::string> pcd_name;
   std::optional<std::string> frame_name;
   if (argc < 2)
@@ -185,7 +184,7 @@ int main(int argc, char** argv)
     if (scaled)
     {
       getFileElements(ifs, input_file, threshold_min);
-      getFileElements(ifs, input_file, threshold_min);
+      getFileElements(ifs, input_file, threshold_max);
       ifs >> std::boolalpha;
       getFileElements(ifs, input_file, classify_emptiness);
       ifs >> std::noboolalpha;
@@ -201,7 +200,7 @@ int main(int argc, char** argv)
       {
         v.push_back(buf);
       }
-      if (v.size() != div_x * div_y)
+      if (v.size() != static_cast<size_t>(div_x * div_y))
       {
         exitBadFile(input_file, " (" + std::to_string(v.size()) + ")");
       }
@@ -219,7 +218,7 @@ int main(int argc, char** argv)
       }
     }
     {
-      auto filename_length = boost::filesystem::path(input_file).filename().string().size();
+      auto filename_length = std::filesystem::path(input_file).filename().string().size();
       prefix = input_file.substr(0, input_file.size() - filename_length) + prefix;
     }
   }
@@ -237,9 +236,10 @@ int main(int argc, char** argv)
   SHOW_PARAM(num_images);
   SHOW_PARAM2(classify_emptiness, std::boolalpha << classify_emptiness << std::noboolalpha);
 
-  ros::NodeHandle n("~");
-  ros::Publisher lane_publisher = n.advertise<nav_msgs::OccupancyGrid>("ortho_images", 1, true);
-  nav_msgs::OccupancyGrid grid;
+  auto node = std::make_shared<rclcpp::Node>("orthomap_viewer");
+  auto lane_publisher = node->create_publisher<nav_msgs::msg::OccupancyGrid>(
+      "ortho_images", rclcpp::QoS(1).transient_local());
+  nav_msgs::msg::OccupancyGrid grid;
 
   grid.info.width = width * div_x;
   grid.info.height = height * div_y;
@@ -304,11 +304,12 @@ int main(int argc, char** argv)
     }
     std::cout << " success." << std::endl;
   }
-  lane_publisher.publish(grid);
-  pcl::PointCloud<pcl::PointXYZI> pc;
-  ros::Publisher pc_pub;
+  lane_publisher->publish(grid);
+
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pc_pub;
   if (pcd_name)
   {
+    pcl::PointCloud<pcl::PointXYZI> pc;
     if (pcl::io::loadPCDFile(*pcd_name, pc) < 0)
     {
       std::cerr << "\033[1;31mError: Could not open " << *pcd_name << " as pcl::PointCloud<pcl::PointXYZI> \033[0m"
@@ -319,13 +320,19 @@ int main(int argc, char** argv)
     {
       p.z = 0.000001;
     }
-    pc_pub = n.advertise<pcl::PointCloud<pcl::PointXYZI>>("pcd_points", 1, true);
-    pc.header.frame_id = *frame_name;
-    pc_pub.publish(pc);
+    pc_pub = node->create_publisher<sensor_msgs::msg::PointCloud2>(
+        "pcd_points", rclcpp::QoS(1).transient_local());
+    sensor_msgs::msg::PointCloud2 pc_msg;
+    pcl::toROSMsg(pc, pc_msg);
+    pc_msg.header.frame_id = *frame_name;
+    pc_msg.header.stamp = node->now();
+    pc_pub->publish(pc_msg);
     std::cout << "publish point cloud" << std::endl;
   }
   std::cout << "finish and spin" << std::endl;
-  ros::spin();
+  rclcpp::spin(node);
   std::cout << std::endl;
+
+  rclcpp::shutdown();
   return 0;
 }
