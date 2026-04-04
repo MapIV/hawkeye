@@ -102,4 +102,8 @@ install(TARGETS hawkeye_rt hawkeye_rt_ws
   DESTINATION lib/${PROJECT_NAME}
 )
 
+install(DIRECTORY launch config rviz
+  DESTINATION share/${PROJECT_NAME}
+)
+
 ament_package()
